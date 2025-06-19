@@ -1,6 +1,11 @@
 # 🏃‍♂️ EnduroSync – NUTS 300 Planner (PWA)
 
-**EnduroSync** is a mobile-ready planning and pacing tool for ultrarunners preparing for the legendary [NUTS 300](https://nutsyllaspallas.com/fi/nuts300/) — a 326 km Arctic ultra with 8500 m of elevation gain in Finnish Lapland.
+[![Status](https://img.shields.io/badge/status-prototype-orange)](https://github.com/trailpodder/endurosync-pwa)
+[![View Demo](https://img.shields.io/badge/View-Demo-blue?logo=github)](https://trailpodder.github.io/endurosync-pwa/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+![Built With](https://img.shields.io/badge/built%20with-JavaScript%20%7C%20Leaflet%20%7C%20Chart.js-yellow)
+
+**EnduroSync** is a mobile-ready planning and pacing tool for ultrarunners preparing for the legendary [NUTS 300](https://nutsyllaspallas.com/fi/nuts300/) — a 326 km Arctic ultra with 4500 m of elevation gain in Finnish Lapland.
 
 > This is a prototype built as a Progressive Web App (PWA) with offline support, GPX file loading, elevation charts, cutoff overlays, and pacing estimates.
 
@@ -33,41 +38,45 @@
 
 This project supports offline mode and mobile install:
 
-1. Visit the deployed app in a browser (see below).
-2. On mobile, tap **“Add to Home Screen”**.
+1. Visit the deployed app:  
+   👉 [https://trailpodder.github.io/endurosync-pwa/](https://trailpodder.github.io/endurosync-pwa/)
+2. On mobile, tap **“Add to Home Screen”**
 3. Use offline in the field!
 
 ---
 
-## 🚀 Run the App
-
-If deployed via GitHub Pages:
-
-```bash
-https://<your-username>.github.io/endurosync-pwa/
-Otherwise, just open index.html in your browser locally.
+## 🗂️ Project Structure
 
 📁 endurosync-pwa/
 ├── index.html
 ├── main.js
 ├── togeojson.js
 ├── manifest.json
+├── service-worker.js
+├── icons/
+│ ├── icon-192.png
+│ └── icon-512.png
 
-📋 Roadmap
- Upload & parse real GPX file
 
- Add Firebase/Supabase sync
+---
 
- Real-time effort scoring (D-TES)
+## 📋 Roadmap
 
- AI-based pacing feedback
+- [ ] Upload & parse real GPX file
+- [ ] Add Firebase/Supabase sync
+- [ ] Real-time effort scoring (D-TES)
+- [ ] AI-based pacing feedback
+- [ ] Course-specific adaptation module
 
- Course-specific adaptation module
+---
 
-👤 Author
-Built by an ultrarunner and AI enthusiast preparing for NUTS 300.
+## 👤 Author
 
-📜 License
+Developed by [trailpodder](https://github.com/trailpodder), an ultrarunner building tools for adaptive trail running strategy.
+
+---
+
+## 📜 License
+
 MIT — free to use, remix, and improve.
-
 
