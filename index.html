@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#000000"/>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <title>EnduroSync – NUTS 300 Planner</title>
+  <style>
+    #map { height: 50vh; }
+    #chart { height: 50vh; }
+  </style>
+</head>
+<body>
+  <h1>EnduroSync – NUTS 300</h1>
+  <input type="file" id="gpxFile" accept=".gpx"/>
+  <div id="map"></div>
+  <canvas id="chart"></canvas>
+
+  <script src="https://unpkg.com/leaflet"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="togeojson.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
