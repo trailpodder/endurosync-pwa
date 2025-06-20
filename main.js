@@ -1,3 +1,14 @@
+fetch('t806536562_nuts 300.gpx')
+  .then(response => response.text())
+  .then(gpxText => {
+    const parser = new DOMParser();
+    const gpx = parser.parseFromString(gpxText, 'application/xml');
+    processGPX(gpx);  // Assuming this is your GPX handling function
+  })
+  .catch(error => {
+    console.error('Failed to load GPX:', error);
+  });
+
 let map = L.map('map').setView([68.4, 23.6], 9);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
