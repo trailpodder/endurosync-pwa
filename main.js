@@ -74,15 +74,20 @@ function exportPlan() {
   URL.revokeObjectURL(url);
 }
 
-window.onload = () => {
-  initMap(); 
+document.addEventListener('DOMContentLoaded', () => {
+  initMap(); // or whatever initializes your Leaflet map
 
   fetch('t806536562_nuts300.gpx')
-    .then(response => response.text())
+    .then(response => {
+      if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+      return response.text();
+    })
     .then(gpxText => {
       const parser = new DOMParser();
       const gpx = parser.parseFromString(gpxText, 'application/xml');
-      processGPX(gpx); // your existing GPX parser/visualization function
+      processGPX(gpx); // your function that parses and draws the route
     })
-    .catch(error => console.error('Failed to load GPX:', error));
-};
+    .catch(error => {
+      console.error('Could not load GPX:', error);
+    });
+});
