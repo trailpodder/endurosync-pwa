@@ -1,4 +1,4 @@
-fetch('/endurosync-pwa/t806536562_nuts300.gpx')
+fetch('/t806536562_nuts300.gpx')
   .then(response => response.text())
   .then(gpxText => {
     const parser = new DOMParser();
