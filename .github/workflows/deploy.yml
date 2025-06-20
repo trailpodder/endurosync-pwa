@@ -17,16 +17,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Set up GitHub Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload static site files
-        uses: actions/upload-pages-artifact@v2
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v4
+      - uses: actions/upload-pages-artifact@v2
         with:
-          path: "."  # The root folder, where index.html lives
+          path: "."
 
   deploy:
     needs: build
@@ -35,6 +30,5 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v4
