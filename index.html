@@ -1,1 +1,34 @@
-<!DOCTYPE html><html><head><title>EnduroSync</title></head><body><h1>EnduroSync PWA</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EnduroSync</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <style>
+    html, body { margin: 0; padding: 0; font-family: sans-serif; }
+    #map { height: 50vh; }
+    #chart { height: 200px; }
+    #controls { padding: 10px; }
+    canvas { width: 100% !important; height: auto !important; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <canvas id="chart"></canvas>
+  <div id="controls">
+    <input type="file" id="gpxInput" accept=".gpx" />
+    <label>Goal Time (h): <input type="number" id="goalTime" value="100"></label>
+    <button onclick="exportPlan()">Export Plan</button>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="main.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js');
+    }
+  </script>
+</body>
+</html>
