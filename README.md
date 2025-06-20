@@ -8,3 +8,15 @@
 - 📱 Offline-first (PWA)
 
 [Live site](https://trailpodder.github.io/endurosync-pwa/)
+
+endurosync-pwa/
+├── index.html
+├── main.js
+├── manifest.json
+├── service-worker.js
+├── icon.png
+├── .gitignore
+├── README.md
+└── .github/
+    └── workflows/
+        └── deploy.yml
