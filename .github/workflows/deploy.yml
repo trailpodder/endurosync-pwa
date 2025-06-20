@@ -17,16 +17,16 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Setup Pages
+      - name: Set up GitHub Pages
         uses: actions/configure-pages@v4
 
-      - name: Upload static files
+      - name: Upload static site files
         uses: actions/upload-pages-artifact@v2
         with:
-          path: "."  # Make sure your index.html is here
+          path: "."  # The root folder, where index.html lives
 
   deploy:
     needs: build
