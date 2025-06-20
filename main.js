@@ -75,9 +75,9 @@ function exportPlan() {
 }
 
 window.onload = () => {
-  initMap(); // your existing function that sets up the Leaflet map
+  initMap(); 
 
-  fetch('/t806536562_nuts300.gpx')
+  fetch('t806536562_nuts300.gpx')
     .then(response => response.text())
     .then(gpxText => {
       const parser = new DOMParser();
