@@ -22,11 +22,14 @@ window.addEventListener("load", async () => {
     map.fitBounds(gpxLayer.getBounds());
 
     const points = geojson.features
-      .flatMap(f => f.geometry.coordinates)
-      .map((coord, index) => {
-        const [lon, lat, ele] = coord;
-        return { lat, lon, ele, dist: 0, index };
-      });
+  .flatMap(f => f.geometry.coordinates)
+  .map((coord, index) => {
+    let lon = coord[0];
+    let lat = coord[1];
+    let ele = coord[2] ?? 0; // default to 0 if elevation is missing
+    return { lat, lon, ele, dist: 0, index };
+  });
+
 
     // Compute cumulative distance
     let totalDist = 0;
