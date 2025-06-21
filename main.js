@@ -25,14 +25,48 @@ fetch('nuts300.gpx')
 
 // Aid stations
 const aidStations = [
-  { name: 'Kalmakaltio', km: 88, lat: 68.65, lon: 24.82, cutoff: 'Tue 12:00' },
-  { name: 'Hetta',        km: 206, lat: 68.38, lon: 23.63, cutoff: 'Thu 13:00' },
-  { name: 'Pallas',       km: 261, lat: 68.05, lon: 24.07, cutoff: 'Fri 13:00' },
-  { name: 'Rauhala',      km: 284, lat: 67.90, lon: 24.19 },
-  { name: 'Pahtavuoma',   km: 295, lat: 67.85, lon: 24.37 },
-  { name: 'Peurakaltio',  km: 309, lat: 67.75, lon: 24.45 },
-  { name: 'Finish (Äkäslompolo)', km: 326, lat: 67.63, lon: 24.15, cutoff: 'Sat 18:00' },
+  {
+    name: "Kalmakaltio",
+    km: 88,
+    lat: 68.421, lon: 25.267,
+    cutoff: "Tuesday 12:00 (24h)"
+  },
+  {
+    name: "Hetta",
+    km: 206,
+    lat: 68.384, lon: 23.634,
+    cutoff: "Thursday 13:00 (73h)"
+  },
+  {
+    name: "Pallas",
+    km: 261,
+    lat: 68.060, lon: 24.070,
+    cutoff: "Friday 13:00 (97h)"
+  },
+  {
+    name: "Rauhala", km: 284, lat: 67.96, lon: 24.21, cutoff: null
+  },
+  {
+    name: "Pahtavuoma", km: 295, lat: 67.87, lon: 24.23, cutoff: null
+  },
+  {
+    name: "Peurakaltio", km: 309, lat: 67.73, lon: 24.18, cutoff: null
+  },
+  {
+    name: "Finish / Äkäslompolo",
+    km: 326,
+    lat: 67.604, lon: 24.153,
+    cutoff: "Saturday 18:00 (126h)"
+  }
 ];
+
+aidStations.forEach(station => {
+  const marker = L.marker([station.lat, station.lon]).addTo(map);
+  let popup = `<b>${station.name}</b><br>${station.km} km`;
+  if (station.cutoff) popup += `<br>Cut-off: ${station.cutoff}`;
+  marker.bindPopup(popup);
+});
+
 
 // Add markers
 aidStations.forEach(station => {
