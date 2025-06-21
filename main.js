@@ -1,77 +1,36 @@
-const map = L.map('map').setView([68.75, 26.22], 10);
-
-// Base map
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+// Initialize Leaflet map
+const map = L.map('map').setView([68.56586, 24.11902], 8);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18,
-  attribution: '© OpenStreetMap contributors'
+  attribution: '© OpenStreetMap'
 }).addTo(map);
 
-// Load GPX route
+// Load and display GPX file automatically
 fetch('nuts300.gpx')
-  .then(res => res.text())
+  .then(res => {
+    if (!res.ok) throw new Error('GPX file fetch failed.');
+    return res.text();
+  })
   .then(gpxText => {
-    const gpx = new DOMParser().parseFromString(gpxText, 'application/xml');
-    new L.GPX(gpx, {
-      async: true,
-      marker_options: {
-        startIconUrl: null,
-        endIconUrl: null,
-        shadowUrl: null
-      }
-    }).on('loaded', function(e) {
-      map.fitBounds(e.target.getBounds());
+    const parser = new DOMParser();
+    const gpxDoc = parser.parseFromString(gpxText, 'application/xml');
+    const geojson = toGeoJSON.gpx(gpxDoc);
+
+    const gpxLayer = L.geoJSON(geojson, {
+      style: { color: 'blue', weight: 3 }
     }).addTo(map);
+
+    map.fitBounds(gpxLayer.getBounds());
+
+    // Optional: Add start marker
+    const coords = geojson.features[0].geometry.coordinates;
+    const start = coords[0];
+    const end = coords[coords.length - 1];
+    L.marker([start[1], start[0]]).addTo(map).bindPopup("Start: Njurkulahti").openPopup();
+    L.marker([end[1], end[0]]).addTo(map).bindPopup("Finish: Äkäslompolo");
+
+  })
+  .catch(err => {
+    console.error('Error loading GPX:', err);
+    alert('Could not load GPX route.');
   });
-
-// Aid stations
-const aidStations = [
-  {
-    name: "Kalmakaltio",
-    km: 88,
-    lat: 68.421, lon: 25.267,
-    cutoff: "Tuesday 12:00 (24h)"
-  },
-  {
-    name: "Hetta",
-    km: 206,
-    lat: 68.384, lon: 23.634,
-    cutoff: "Thursday 13:00 (73h)"
-  },
-  {
-    name: "Pallas",
-    km: 261,
-    lat: 68.060, lon: 24.070,
-    cutoff: "Friday 13:00 (97h)"
-  },
-  {
-    name: "Rauhala", km: 284, lat: 67.96, lon: 24.21, cutoff: null
-  },
-  {
-    name: "Pahtavuoma", km: 295, lat: 67.87, lon: 24.23, cutoff: null
-  },
-  {
-    name: "Peurakaltio", km: 309, lat: 67.73, lon: 24.18, cutoff: null
-  },
-  {
-    name: "Finish / Äkäslompolo",
-    km: 326,
-    lat: 67.604, lon: 24.153,
-    cutoff: "Saturday 18:00 (126h)"
-  }
-];
-
-aidStations.forEach(station => {
-  const marker = L.marker([station.lat, station.lon]).addTo(map);
-  let popup = `<b>${station.name}</b><br>${station.km} km`;
-  if (station.cutoff) popup += `<br>Cut-off: ${station.cutoff}`;
-  marker.bindPopup(popup);
-});
-
-
-// Add markers
-aidStations.forEach(station => {
-  const marker = L.marker([station.lat, station.lon]).addTo(map);
-  const info = `<b>${station.name}</b><br>${station.km} km` +
-               (station.cutoff ? `<br>⏱ Cutoff: ${station.cutoff}` : '');
-  marker.bindPopup(info);
-});
