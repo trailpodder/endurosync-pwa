@@ -2,33 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>EnduroSync</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EnduroSync – NUTS 300</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    html, body { margin: 0; padding: 0; font-family: sans-serif; }
-    #map { height: 50vh; }
-    #chart { height: 200px; }
-    #controls { padding: 10px; }
-    canvas { width: 100% !important; height: auto !important; }
+    body, html { margin: 0; padding: 0; height: 100%; }
+    #map { height: 100vh; width: 100vw; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <canvas id="chart"></canvas>
-  <div id="controls">
-    <input type="file" id="gpxInput" accept=".gpx" />
-    <label>Goal Time (h): <input type="number" id="goalTime" value="100"></label>
-    <button onclick="exportPlan()">Export Plan</button>
-  </div>
-  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Leaflet & GPX -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.5.1/gpx.min.js"></script>
+
+  <!-- Main App -->
   <script src="main.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js');
-    }
-  </script>
 </body>
 </html>
