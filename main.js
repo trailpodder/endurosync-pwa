@@ -1,128 +1,86 @@
 // main.js
 
-let map;
-let elevationChart;
-let gpxLayer;
+// Create the map
+const map = L.map('map').setView([68.5, 21.5], 9);
 
-window.addEventListener("load", async () => {
-  map = L.map("map").setView([68.3, 22.6], 8);
+// Add tile layer
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 17,
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
 
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors",
-  }).addTo(map);
+// Fetch GPX file and load it
+fetch('nuts300.gpx')
+  .then(response => response.text())
+  .then(gpxText => {
+    const parser = new DOMParser();
+    const gpxDoc = parser.parseFromString(gpxText, 'application/xml');
+    const geojson = toGeoJSON.gpx(gpxDoc);
 
-  try {
-    const response = await fetch("nuts300.gpx");
-    const gpxText = await response.text();
+    const trackCoords = geojson.features[0].geometry.coordinates;
 
-    const gpxDom = new DOMParser().parseFromString(gpxText, "text/xml");
-    const geojson = toGeoJSON.gpx(gpxDom);
+    // Draw the route
+    const route = L.polyline(trackCoords.map(c => [c[1], c[0]]), { color: 'blue' }).addTo(map);
+    map.fitBounds(route.getBounds());
 
-    gpxLayer = L.geoJSON(geojson).addTo(map);
-    map.fitBounds(gpxLayer.getBounds());
+    // Aid station definitions
+    const aidStations = [
+      { name: "Kalmakaltio", km: 88, cutoff: "Tue 12:00" },
+      { name: "Hetta", km: 118, cutoff: "Thu 13:00" },
+      { name: "Pallas", km: 261, cutoff: "Fri 13:00" },
+      { name: "Rauhala", km: 284, cutoff: null },
+      { name: "Pahtavuoma", km: 295, cutoff: null },
+      { name: "Peurakaltio", km: 309, cutoff: null },
+      { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00" }
+    ];
 
-    const points = geojson.features
-  .flatMap(f => f.geometry.coordinates)
-  .map((coord, index) => {
-    let lon = coord[0];
-    let lat = coord[1];
-    let ele = coord[2] ?? 0; // default to 0 if elevation is missing
-    return { lat, lon, ele, dist: 0, index };
-  });
-
-
-    // Compute cumulative distance
-    let totalDist = 0;
-    for (let i = 1; i < points.length; i++) {
-      const dx = points[i].lat - points[i - 1].lat;
-      const dy = points[i].lon - points[i - 1].lon;
-      const d = Math.sqrt(dx * dx + dy * dy) * 111.32; // Approx km
-      totalDist += d;
-      points[i].dist = totalDist;
+    // Helper: Compute total GPX length in km
+    function haversine(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const toRad = deg => deg * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
-    showElevationChart(points);
-    placeAidStations(points);
-  } catch (err) {
-    console.error("Error loading GPX:", err);
-  }
-
-  // Register service worker
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("service-worker.js").then(() => {
-      console.log("✅ Service Worker registered");
-    });
-  }
-});
-
-const aidStations = [
-  { name: "Kalmakaltio", km: 88, cutoff: "Tue 12:00", type: "aid" },
-  { name: "Hetta", km: 206, cutoff: "Thu 13:00", type: "aid" },
-  { name: "Pallas", km: 261, cutoff: "Fri 13:00", type: "aid" },
-  { name: "Rauhala", km: 284, type: "water" },
-  { name: "Pahtavuoma", km: 295, type: "water" },
-  { name: "Peurakaltio", km: 309, type: "water" },
-  { name: "Finish", km: 326, cutoff: "Sat 18:00", type: "finish" },
-];
-
-function placeAidStations(points) {
-  aidStations.forEach(station => {
-    const closest = points.reduce((prev, curr) =>
-      Math.abs(curr.dist - station.km) < Math.abs(prev.dist - station.km) ? curr : prev
-    );
-    L.marker([closest.lat, closest.lon], {
-      icon: L.divIcon({
-        className: "aid-marker",
-        html: station.type === "water" ? "💧" : (station.type === "finish" ? "🏁" : "🩺"),
-        iconSize: [24, 24],
-      })
-    }).addTo(map).bindPopup(
-      `<b>${station.name}</b><br>${station.km} km${station.cutoff ? `<br>Cutoff: ${station.cutoff}` : ""}`
-    );
-  });
-}
-
-function showElevationChart(points) {
-  const ctx = document.getElementById("chart").getContext("2d");
-  const distances = points.map(p => p.dist.toFixed(1));
-  const elevations = points.map(p => p.ele);
-
-  const annotations = aidStations.map(station => ({
-    type: 'line',
-    scaleID: 'x',
-    value: station.km,
-    borderColor: station.type === "water" ? "blue" : (station.type === "finish" ? "green" : "red"),
-    borderWidth: 1,
-    label: {
-      display: true,
-      content: station.name,
-      rotation: 0,
-      color: '#333',
-      backgroundColor: 'rgba(255,255,255,0.8)'
-    }
-  }));
-
-  elevationChart = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: distances,
-      datasets: [{
-        label: "Elevation (m)",
-        data: elevations,
-        fill: false,
-        borderColor: "orange",
-        tension: 0.1,
-      }],
-    },
-    options: {
-      responsive: true,
-      scales: {
-        x: { title: { display: true, text: "Distance (km)" } },
-        y: { title: { display: true, text: "Elevation (m)" } }
-      },
-      plugins: {
-        annotation: { annotations }
+    // Compute cumulative distance along GPX track
+    let cumulativeDistance = 0;
+    const distPoints = trackCoords.map((coord, i) => {
+      if (i > 0) {
+        cumulativeDistance += haversine(
+          trackCoords[i - 1][1], trackCoords[i - 1][0],
+          coord[1], coord[0]
+        );
       }
-    },
-  });
+      return {
+        lat: coord[1],
+        lon: coord[0],
+        km: cumulativeDistance
+      };
+    });
+
+    // Find nearest track point for each aid station by km
+    aidStations.forEach(station => {
+      let nearest = distPoints.reduce((prev, curr) =>
+        Math.abs(curr.km - station.km) < Math.abs(prev.km - station.km) ? curr : prev
+      );
+
+      const marker = L.marker([nearest.lat, nearest.lon]).addTo(map);
+      marker.bindPopup(
+        `<strong>${station.name}</strong><br>Km ${station.km}<br>` +
+        (station.cutoff ? `⏱ Cutoff: ${station.cutoff}` : '✅ No cutoff')
+      );
+    });
+
+  })
+  .catch(err => console.error('Error loading GPX:', err));
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js')
+    .then(() => console.log('✅ Service Worker registered'))
+    .catch(err => console.error('Service Worker registration failed:', err));
 }
