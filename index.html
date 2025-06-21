@@ -1,41 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EnduroSync – NUTS 300 Planner</title>
-
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EnduroSync</title>
+  <link rel="manifest" href="manifest.json?v=20250619">
+  <link rel="stylesheet" href="style.css?v=20250619">
+  <link rel="icon" href="icon.png?v=20250619">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-    }
-
-    #map {
-      height: 100vh;
-      width: 100%;
-    }
-
-    .station-icon {
-      font-size: 20px;
-      text-align: center;
-      color: red;
-    }
+    #map { height: 80vh; width: 100%; }
+    body { margin: 0; font-family: sans-serif; }
   </style>
 </head>
 <body>
-
+  <h1 style="text-align:center;">EnduroSync NUTS 300</h1>
   <div id="map"></div>
 
-  <!-- Leaflet -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- toGeoJSON -->
-  <script src="https://unpkg.com/togeojson@0.16.0/dist/togeojson.umd.js"></script>
-
-  <!-- Main app logic -->
-  <script src="main.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/togeojson@0.16.0/dist/togeojson.min.js"></script>
+  <script src="main.js?v=20250619"></script>
 </body>
 </html>
