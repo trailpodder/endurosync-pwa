@@ -25,9 +25,9 @@ fetch('nuts300.gpx')
 
     // Aid station definitions
     const aidStations = [
-      { name: "Kalmakaltio", km: 88, cutoff: "Tue 12:00" },
-      { name: "Hetta", km: 118, cutoff: "Thu 13:00" },
-      { name: "Pallas", km: 261, cutoff: "Fri 13:00" },
+      { name: "Kalmakaltio", km: 89, cutoff: "Tue 12:00" },
+      { name: "Hetta", km: 206, cutoff: "Thu 13:00" },
+      { name: "Pallas", km: 251, cutoff: "Fri 13:00" },
       { name: "Rauhala", km: 284, cutoff: null },
       { name: "Pahtavuoma", km: 295, cutoff: null },
       { name: "Peurakaltio", km: 309, cutoff: null },
