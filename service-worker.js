@@ -1,18 +1,25 @@
-self.addEventListener('install', event => {
-  event.waitUntil(caches.open('endurosync-v1').then(cache => {
-    return cache.addAll([
-      './',
-      './index.html',
-      './main.js',
-      './manifest.json',
-      './icon.png'
-      './nuts300.gpx'
-    ]);
-  }));
+const CACHE_NAME = 'endurosync-cache-v1';
+const ASSETS = [
+  './',
+  'index.html',
+  'style.css',
+  'main.js',
+  'manifest.json',
+  'icon.png',
+  'nuts300.gpx',
+  'https://unpkg.com/leaflet/dist/leaflet.css',
+  'https://unpkg.com/leaflet/dist/leaflet.js',
+  'https://unpkg.com/togeojson@0.16.0/dist/togeojson.min.js'
+];
+
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+  );
 });
 
-self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request).then(response => response || fetch(event.request))
+self.addEventListener('fetch', e => {
+  e.respondWith(
+    caches.match(e.request).then(response => response || fetch(e.request))
   );
 });
