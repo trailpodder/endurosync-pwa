@@ -2,17 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EnduroSync</title>
-  <link rel="manifest" href="manifest.json?v=20250619">
-  <link rel="stylesheet" href="style.css?v=20250619">
-  <link rel="icon" href="icon.png?v=20250619">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
-  <style>
-    #map { height: 80vh; width: 100%; }
-    body { margin: 0; font-family: sans-serif; }
-  </style>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- JS libraries must be loaded BEFORE main.js -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/togeojson@0.16.0/dist/togeojson.min.js"></script>
+  <script src="main.js?v=20250619" defer></script>
 </head>
+
 <body>
   <h1 style="text-align:center;">EnduroSync NUTS 300</h1>
   <div id="map"></div>
