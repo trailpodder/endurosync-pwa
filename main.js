@@ -1,93 +1,43 @@
-let map = L.map('map').setView([68.4, 23.6], 9);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+const map = L.map('map').setView([68.75, 26.22], 10);
 
-let chart = new Chart(document.getElementById('chart'), {
-  type: 'line',
-  data: {
-    labels: [],
-    datasets: [{ label: 'Elevation (m)', data: [], borderColor: 'blue', fill: false }]
-  },
-  options: {
-    responsive: true,
-    scales: { x: { title: { display: true, text: 'Distance (km)' } } }
-  }
-});
+// Base map
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18,
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
 
-document.getElementById('gpxInput').addEventListener('change', function (e) {
-  const file = e.target.files[0];
-  if (!file) return;
+// Load GPX route
+fetch('nuts300.gpx')
+  .then(res => res.text())
+  .then(gpxText => {
+    const gpx = new DOMParser().parseFromString(gpxText, 'application/xml');
+    new L.GPX(gpx, {
+      async: true,
+      marker_options: {
+        startIconUrl: null,
+        endIconUrl: null,
+        shadowUrl: null
+      }
+    }).on('loaded', function(e) {
+      map.fitBounds(e.target.getBounds());
+    }).addTo(map);
+  });
 
-  const reader = new FileReader();
-  reader.onload = function (event) {
-    const parser = new DOMParser();
-    const xml = parser.parseFromString(event.target.result, "text/xml");
-    const trkpts = Array.from(xml.getElementsByTagName("trkpt"));
+// Aid stations
+const aidStations = [
+  { name: 'Kalmakaltio', km: 88, lat: 68.65, lon: 24.82, cutoff: 'Tue 12:00' },
+  { name: 'Hetta',        km: 206, lat: 68.38, lon: 23.63, cutoff: 'Thu 13:00' },
+  { name: 'Pallas',       km: 261, lat: 68.05, lon: 24.07, cutoff: 'Fri 13:00' },
+  { name: 'Rauhala',      km: 284, lat: 67.90, lon: 24.19 },
+  { name: 'Pahtavuoma',   km: 295, lat: 67.85, lon: 24.37 },
+  { name: 'Peurakaltio',  km: 309, lat: 67.75, lon: 24.45 },
+  { name: 'Finish (Äkäslompolo)', km: 326, lat: 67.63, lon: 24.15, cutoff: 'Sat 18:00' },
+];
 
-    let latlngs = [];
-    let distances = [0];
-    let elevations = [];
-    let totalDist = 0;
-
-    for (let i = 1; i < trkpts.length; i++) {
-      const lat1 = parseFloat(trkpts[i - 1].getAttribute("lat"));
-      const lon1 = parseFloat(trkpts[i - 1].getAttribute("lon"));
-      const lat2 = parseFloat(trkpts[i].getAttribute("lat"));
-      const lon2 = parseFloat(trkpts[i].getAttribute("lon"));
-      const ele = parseFloat(trkpts[i].getElementsByTagName("ele")[0]?.textContent || "0");
-      const dist = haversine(lat1, lon1, lat2, lon2);
-      totalDist += dist;
-      distances.push(totalDist);
-      elevations.push(ele);
-      latlngs.push([lat2, lon2]);
-    }
-
-    L.polyline(latlngs, { color: 'blue' }).addTo(map);
-    map.fitBounds(L.polyline(latlngs).getBounds());
-
-    chart.data.labels = distances.map(d => d.toFixed(1));
-    chart.data.datasets[0].data = elevations;
-    chart.update();
-  };
-  reader.readAsText(file);
-});
-
-function haversine(lat1, lon1, lat2, lon2) {
-  const R = 6371e3;
-  const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(Δφ / 2) ** 2 +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return (R * c) / 1000;
-}
-
-function exportPlan() {
-  const goalTime = parseFloat(document.getElementById('goalTime').value || "100");
-  const blob = new Blob([JSON.stringify({ goalTime })], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "plan.json";
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  initMap(); // or whatever initializes your Leaflet map
-
-  fetch('nuts300.gpx')
-    .then(response => {
-      if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
-      return response.text();
-    })
-    .then(gpxText => {
-      const parser = new DOMParser();
-      const gpx = parser.parseFromString(gpxText, 'application/xml');
-      processGPX(gpx); // your function that parses and draws the route
-    })
-    .catch(error => {
-      console.error('Could not load GPX:', error);
-    });
+// Add markers
+aidStations.forEach(station => {
+  const marker = L.marker([station.lat, station.lon]).addTo(map);
+  const info = `<b>${station.name}</b><br>${station.km} km` +
+               (station.cutoff ? `<br>⏱ Cutoff: ${station.cutoff}` : '');
+  marker.bindPopup(info);
 });
