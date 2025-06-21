@@ -1,35 +1,37 @@
-// Initialize the map
+// Initialize Leaflet map
 const map = L.map('map').setView([68.4, 23.7], 8);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-// Fetch and render GPX
+// Load the GPX file using blob
 fetch('nuts300.gpx')
   .then(response => {
     if (!response.ok) throw new Error('GPX fetch failed');
-    return response.text();
+    return response.blob();
+  })
+  .then(blob => {
+    return blob.text(); // Convert blob to text
   })
   .then(gpxText => {
     const parser = new DOMParser();
     const gpx = parser.parseFromString(gpxText, "application/xml");
     const geojson = toGeoJSON.gpx(gpx);
 
-    const gpxLine = L.geoJSON(geojson, {
+    const gpxLayer = L.geoJSON(geojson, {
       style: { color: 'blue', weight: 3 }
     }).addTo(map);
 
-    map.fitBounds(gpxLine.getBounds());
+    map.fitBounds(gpxLayer.getBounds());
 
-    // Add start and finish markers
+    // Mark start and finish
     const coords = geojson.features[0].geometry.coordinates;
     const start = coords[0];
     const end = coords[coords.length - 1];
-
     L.marker([start[1], start[0]]).addTo(map).bindPopup("🏁 Start: Njurkulahti");
     L.marker([end[1], end[0]]).addTo(map).bindPopup("🎉 Finish: Äkäslompolo");
   })
-  .catch(error => {
-    console.error("GPX Load Error:", error);
-    alert("Failed to load GPX route.");
+  .catch(err => {
+    console.error("Could not load GPX:", err);
+    alert("Error loading route. See console for details.");
   });
