@@ -77,7 +77,7 @@ function exportPlan() {
 document.addEventListener('DOMContentLoaded', () => {
   initMap(); // or whatever initializes your Leaflet map
 
-  fetch('t806536562_nuts300.gpx')
+  fetch('nuts300.gpx')
     .then(response => {
       if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
       return response.text();
