@@ -6,7 +6,7 @@ self.addEventListener('install', event => {
       './main.js',
       './manifest.json',
       './icon.png'
-      './t806536562_nuts 300.gpx'
+      './nuts300.gpx'
     ]);
   }));
 });
