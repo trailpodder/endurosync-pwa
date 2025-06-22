@@ -28,9 +28,9 @@ fetch('nuts300.gpx')
       { name: "Kalmakaltio", km: 88, cutoff: "Tue 12:00" },
       { name: "Hetta", km: 192, cutoff: "Thu 13:00" },
       { name: "Pallas", km: 256, cutoff: "Fri 13:00" },
-      { name: "Rauhala", km: 284, cutoff: null },
-      { name: "Pahtavuoma", km: 295, cutoff: null },
-      { name: "Peurakaltio", km: 309, cutoff: null },
+      { name: "Rauhala", km: 274, cutoff: null },
+      { name: "Pahtavuoma", km: 290, cutoff: null },
+      { name: "Peurakaltio", km: 300, cutoff: null },
       { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00" }
     ];
 
