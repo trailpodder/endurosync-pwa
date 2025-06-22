@@ -1,27 +1,53 @@
-// main.js
+// Register Service Worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js')
+    .then(() => console.log('✅ Service Worker registered'))
+    .catch(err => console.error('❌ Service Worker error:', err));
+}
 
-// Create the map
-const map = L.map('map').setView([68.5, 21.5], 9);
+// Initialize map
+const map = L.map('map').setView([68.3, 23.7], 8); // Lapland view
 
-// Add tile layer
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 17,
+  maxZoom: 18,
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-// Fetch GPX file and load it
+// Load GPX file
 fetch('nuts300.gpx')
-  .then(response => response.text())
+  .then(res => res.text())
   .then(gpxText => {
     const parser = new DOMParser();
-    const gpxDoc = parser.parseFromString(gpxText, 'application/xml');
-    const geojson = toGeoJSON.gpx(gpxDoc);
+    const gpx = parser.parseFromString(gpxText, 'application/xml');
+    const geojson = toGeoJSON.gpx(gpx);
 
-    const trackCoords = geojson.features[0].geometry.coordinates;
+    // Get track coordinates
+    const coords = geojson.features[0].geometry.coordinates.map(c => L.latLng(c[1], c[0]));
 
-    // Draw the route
-    const route = L.polyline(trackCoords.map(c => [c[1], c[0]]), { color: 'blue' }).addTo(map);
-    map.fitBounds(route.getBounds());
+    // Add route to map
+    const polyline = L.polyline(coords, { color: 'blue', weight: 3 }).addTo(map);
+    map.fitBounds(polyline.getBounds());
+
+    // Elevation chart
+    const elevationData = geojson.features[0].geometry.coordinates.map((c, i) => ({
+      distance: i === 0 ? 0 : coords[i - 1].distanceTo(coords[i]) / 1000,
+      elevation: c[2]
+    }));
+    for (let i = 1; i < elevationData.length; i++) {
+      elevationData[i].distance += elevationData[i - 1].distance;
+    }
+
+    const chart = echarts.init(document.getElementById('chart'));
+    chart.setOption({
+      xAxis: { type: 'value', name: 'Distance (km)' },
+      yAxis: { type: 'value', name: 'Elevation (m)' },
+      series: [{
+        type: 'line',
+        data: elevationData.map(d => [d.distance, d.elevation]),
+        smooth: true,
+        lineStyle: { color: '#3b87f9' }
+      }]
+    });
 
     // Aid station definitions
     const aidStations = [
@@ -34,53 +60,35 @@ fetch('nuts300.gpx')
       { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00" }
     ];
 
-    // Helper: Compute total GPX length in km
-    function haversine(lat1, lon1, lat2, lon2) {
-      const R = 6371;
-      const toRad = deg => deg * Math.PI / 180;
-      const dLat = toRad(lat2 - lat1);
-      const dLon = toRad(lon2 - lon1);
-      const a = Math.sin(dLat / 2) ** 2 +
-        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) ** 2;
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-
-    // Compute cumulative distance along GPX track
-    let cumulativeDistance = 0;
-    const distPoints = trackCoords.map((coord, i) => {
-      if (i > 0) {
-        cumulativeDistance += haversine(
-          trackCoords[i - 1][1], trackCoords[i - 1][0],
-          coord[1], coord[0]
-        );
-      }
-      return {
-        lat: coord[1],
-        lon: coord[0],
-        km: cumulativeDistance
-      };
-    });
-
-    // Find nearest track point for each aid station by km
     aidStations.forEach(station => {
-      let nearest = distPoints.reduce((prev, curr) =>
-        Math.abs(curr.km - station.km) < Math.abs(prev.km - station.km) ? curr : prev
-      );
-
-      const marker = L.marker([nearest.lat, nearest.lon]).addTo(map);
-      marker.bindPopup(
-        `<strong>${station.name}</strong><br>Km ${station.km}<br>` +
-        (station.cutoff ? `⏱ Cutoff: ${station.cutoff}` : '✅ No cutoff')
-      );
+      const latlng = getLatLngAtKm(coords, station.km);
+      L.marker(latlng).addTo(map)
+        .bindPopup(`<b>${station.name}</b><br>KM ${station.km}<br>${station.cutoff ?? "No cutoff"}`);
     });
 
   })
-  .catch(err => console.error('Error loading GPX:', err));
+  .catch(err => console.error("Error loading GPX:", err));
 
-// Register service worker
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js')
-    .then(() => console.log('✅ Service Worker registered'))
-    .catch(err => console.error('Service Worker registration failed:', err));
+function getLatLngAtKm(trackCoords, targetKm) {
+  const targetMeters = targetKm * 1000;
+  let accumulated = 0;
+
+  for (let i = 1; i < trackCoords.length; i++) {
+    const prev = trackCoords[i - 1];
+    const curr = trackCoords[i];
+    const segmentDistance = map.distance(prev, curr);
+
+    if (accumulated + segmentDistance >= targetMeters) {
+      const overshoot = targetMeters - accumulated;
+      const ratio = overshoot / segmentDistance;
+
+      const lat = prev.lat + (curr.lat - prev.lat) * ratio;
+      const lng = prev.lng + (curr.lng - prev.lng) * ratio;
+      return L.latLng(lat, lng);
+    }
+
+    accumulated += segmentDistance;
+  }
+
+  return trackCoords[trackCoords.length - 1]; // fallback to last point
 }
