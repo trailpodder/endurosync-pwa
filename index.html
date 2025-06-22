@@ -2,17 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>EnduroSync</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EnduroSync PWA</title>
+
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.3.1/dist/chartjs-plugin-annotation.min.js"></script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="togeojson.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="icon" href="favicon.ico" type="image/x-icon" />
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- ECharts for elevation chart -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+
+  <!-- Leaflet -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <!-- toGeoJSON -->
+  <script src="togeojson.js"></script>
+
+  <script defer src="main.js?v=20250620"></script>
 </head>
+
 <body>
   <h1>EnduroSync</h1>
   <div id="map" style="height: 400px;"></div>
