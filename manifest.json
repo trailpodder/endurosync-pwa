@@ -1,19 +1,20 @@
 {
   "name": "EnduroSync",
   "short_name": "EnduroSync",
+  "description": "Adaptive pacing and planning for ultra-distance trail running",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#1e90ff",
+  "theme_color": "#0077cc",
   "icons": [
     {
-      "src": "icon.png",
-      "sizes": "192x192",
-      "type": "image/png"
+      "src": "favicon.ico",
+      "sizes": "48x48 72x72 96x96 128x128 256x256",
+      "type": "image/x-icon"
     },
     {
-      "src": "icon.png",
-      "sizes": "512x512",
+      "src": "favicon.png",
+      "sizes": "192x192",
       "type": "image/png"
     }
   ]
