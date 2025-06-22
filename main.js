@@ -1,40 +1,50 @@
-// main.js
+let map = L.map('map').setView([68.5, 21], 8);
 
-// Initialize the map
-const map = L.map('map').setView([68.5, 22.5], 8);
-
+// Add OpenStreetMap tile layer
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-// Load and display the GPX route
+// Load and parse GPX file
 fetch('nuts300.gpx')
-  .then(res => res.text())
+  .then(response => response.text())
   .then(gpxText => {
     const parser = new DOMParser();
-    const gpx = parser.parseFromString(gpxText, 'application/xml');
-    const geojson = toGeoJSON.gpx(gpx);
-    const route = L.geoJSON(geojson, { color: 'blue' }).addTo(map);
-    map.fitBounds(route.getBounds());
+    const gpxDoc = parser.parseFromString(gpxText, "application/xml");
+    const geojson = toGeoJSON.gpx(gpxDoc);
+    const track = geojson.features[0];
 
-    // Elevation chart setup
-    const chart = echarts.init(document.getElementById('elevation-chart'));
-    const coords = geojson.features[0].geometry.coordinates;
-    const elevationData = coords.map(c => c[2] || 0);
-    const distanceData = coords.map((_, i) => i * 0.05); // Rough approx, can be improved
+    // Add route to map
+    const routeLine = L.geoJSON(track, {
+      style: { color: 'blue', weight: 3 }
+    }).addTo(map);
+    map.fitBounds(routeLine.getBounds());
 
-    chart.setOption({
-      tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: distanceData.map(d => d.toFixed(1)) },
-      yAxis: { type: 'value', name: 'Elevation (m)' },
-      series: [{
-        data: elevationData,
-        type: 'line',
-        areaStyle: {}
-      }]
-    });
+    // Extract coordinates
+    const coords = track.geometry.coordinates.map(c => L.latLng(c[1], c[0]));
 
-    // Aid station definitions (user-provided)
+    // Compute cumulative distances
+    const distances = [0];
+    for (let i = 1; i < coords.length; i++) {
+      distances[i] = distances[i - 1] + coords[i - 1].distanceTo(coords[i]) / 1000;
+    }
+
+    // Function to get coordinate at approx. km
+    function getLatLngAtKm(targetKm) {
+      for (let i = 1; i < distances.length; i++) {
+        if (distances[i] >= targetKm) {
+          const prev = coords[i - 1];
+          const curr = coords[i];
+          const ratio = (targetKm - distances[i - 1]) / (distances[i] - distances[i - 1]);
+          const lat = prev.lat + (curr.lat - prev.lat) * ratio;
+          const lng = prev.lng + (curr.lng - prev.lng) * ratio;
+          return [lat, lng];
+        }
+      }
+      return coords[coords.length - 1];
+    }
+
+    // Aid station data
     const aidStations = [
       { name: "Kalmakaltio", km: 88, cutoff: "Tue 12:00" },
       { name: "Hetta", km: 192, cutoff: "Thu 13:00" },
@@ -45,33 +55,52 @@ fetch('nuts300.gpx')
       { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00" }
     ];
 
-    // Get LatLng along route at approximate distance
-    function getLatLngAtKm(geojson, targetKm) {
-      const coords = geojson.features[0].geometry.coordinates;
-      let total = 0;
-      for (let i = 1; i < coords.length; i++) {
-        const a = L.latLng(coords[i - 1][1], coords[i - 1][0]);
-        const b = L.latLng(coords[i][1], coords[i][0]);
-        const d = a.distanceTo(b) / 1000; // km
-        total += d;
-        if (total >= targetKm) return b;
-      }
-      return L.latLng(coords.at(-1)[1], coords.at(-1)[0]);
-    }
-
+    // Add aid station markers
     aidStations.forEach(station => {
-      const latlng = getLatLngAtKm(geojson, station.km);
-      L.marker(latlng)
-        .addTo(map)
-        .bindPopup(`<b>${station.name}</b><br>km ${station.km}<br>Cutoff: ${station.cutoff || '—'}`);
+      const latlng = getLatLngAtKm(station.km);
+      L.circleMarker(latlng, {
+        radius: 6,
+        color: 'red',
+        fillColor: 'white',
+        fillOpacity: 1,
+        weight: 2
+      }).addTo(map).bindPopup(`<strong>${station.name}</strong><br>Km ${station.km}<br>${station.cutoff ? "Cutoff: " + station.cutoff : ""}`);
     });
 
-  })
-  .catch(err => console.error("Error loading GPX:", err));
+    // Elevation chart
+    const chart = echarts.init(document.getElementById('chart'));
+    const elevation = track.geometry.coordinates.map(c => c[2] || 0);
+    const distance = distances;
 
-// Service Worker
+    chart.setOption({
+      tooltip: { trigger: 'axis' },
+      xAxis: {
+        type: 'category',
+        data: distance.map(d => d.toFixed(1)),
+        name: 'Distance (km)',
+        boundaryGap: false
+      },
+      yAxis: {
+        type: 'value',
+        name: 'Elevation (m)'
+      },
+      series: [{
+        type: 'line',
+        data: elevation,
+        areaStyle: {},
+        name: 'Elevation',
+        smooth: true,
+        lineStyle: { width: 1 }
+      }]
+    });
+  })
+  .catch(err => {
+    console.error("Error loading GPX:", err);
+  });
+
+// Register service worker
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js')
-    .then(() => console.log('✅ Service Worker registered'))
-    .catch(err => console.error('Service Worker error:', err));
+    .then(() => console.log("✅ Service Worker registered"))
+    .catch(err => console.error("Service Worker error:", err));
 }
