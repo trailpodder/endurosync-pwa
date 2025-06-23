@@ -3,43 +3,35 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>EnduroSync PWA</title>
-
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
-  <meta name="theme-color" content="#ffffff"/>
-
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-
-  <style>
-    body, html {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: sans-serif;
-    }
-    #map {
-      height: 60%;
-      width: 100%;
-    }
-    #elevation-chart {
-      height: 40%;
-      width: 100%;
-    }
-  </style>
+  <title>NUTS 300 Planner</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="favicon.ico" type="image/x-icon" />
+  <script src="leaflet.js"></script>
+  <script src="echarts.min.js"></script>
+  <script src="togeojson.js"></script>
 </head>
 <body>
-  <div id="map"></div>
-  <div id="elevation-chart"></div>
+  <h1>NUTS 300 Planner</h1>
+  
+  <div>
+    <label for="goalHours">Goal Time (hours):</label>
+    <input type="number" id="goalHours" value="90" min="50" max="120" />
+  </div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <div>
+    <h2>Planned Stop Durations</h2>
+    <label>Kalmakaltio (h): <input type="number" id="stopKalmakaltio" value="1" step="0.25"></label><br>
+    <label>Hetta (h): <input type="number" id="stopHetta" value="2" step="0.25"></label><br>
+    <label>Pallas (h): <input type="number" id="stopPallas" value="3" step="0.25"></label>
+  </div>
 
-  <!-- ECharts for elevation chart -->
-  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <button id="updatePlan">Update Plan</button>
 
-  <!-- App modules -->
+  <div id="map" style="height: 400px; margin-top: 20px;"></div>
+  <div id="elevation" style="height: 200px;"></div>
+  <div id="plannerOutput" style="margin-top: 20px;"></div>
+
   <script type="module" src="main.js?v=20250621"></script>
 </body>
 </html>
