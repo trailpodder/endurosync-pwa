@@ -6,45 +6,65 @@
   <title>NUTS 300 Planner</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body { margin: 0; font-family: sans-serif; }
-    #map { height: 40vh; }
-    #elevation { height: 30vh; }
-    #planner { padding: 1em; }
-    table { border-collapse: collapse; margin-top: 1em; }
-    td, th { border: 1px solid #ccc; padding: 0.5em; }
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    #map {
+      height: 300px;
+    }
+    #elevation {
+      height: 200px;
+      width: 100%;
+    }
+    #planner {
+      padding: 1em;
+    }
+    #planner input {
+      width: 60px;
+      margin-left: 5px;
+    }
+    #plannerOutput div {
+      margin-bottom: 0.5em;
+    }
   </style>
 </head>
 <body>
-  <h1>NUTS 300 Race Planner</h1>
+  <h1>NUTS 300 Planner</h1>
   <div id="map"></div>
   <div id="elevation"></div>
-  <div id="planner">
-    <label for="goalTime">Goal Time (hours): </label>
-    <input type="number" id="goalTime" value="90" min="10" max="200" />
-    <button onclick="updatePlanner()">Update Plan</button>
 
-    <h2>Aid Station Plan</h2>
-    <table id="planTable">
-      <thead>
-        <tr>
-          <th>Segment</th>
-          <th>Distance (km)</th>
-          <th>Planned Time (h)</th>
-          <th>Cutoff</th>
-          <th>Rest Time (h)</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+  <div id="planner">
+    <p>
+      Goal time (hours):
+      <input type="number" id="goalTime" value="90" min="50" max="120" step="1" />
+    </p>
+    <div id="plannerOutput"></div>
   </div>
 
-  <!-- Libraries -->
+  <!-- Leaflet and plugins -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- ECharts -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+
+  <!-- Turf.js for distance calculations -->
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+
+  <!-- toGeoJSON (local file saved in same directory) -->
   <script src="togeojson.js"></script>
+
+  <!-- Main app -->
   <script type="module" src="main.js?v=20250621"></script>
 
-  <!-- Main App -->
-  <script src="main.js?v=20250621"></script>
+  <!-- Service worker (optional) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').then(() => {
+        console.log('✅ Service Worker registered');
+      });
+    }
+  </script>
 </body>
 </html>
