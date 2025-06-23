@@ -1,92 +1,110 @@
-import * as togeojson from './togeojson.js';
+import * as L from './leaflet.js';
 
-const map = L.map('map').setView([68.3, 23.5], 9);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 18,
+const map = L.map("map").setView([68.3, 21.3], 8);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap contributors"
 }).addTo(map);
 
-fetch('nuts300.gpx')
-  .then(response => response.text())
+fetch("nuts300.gpx")
+  .then(res => res.text())
   .then(gpxText => {
-    const gpxDoc = new DOMParser().parseFromString(gpxText, "application/xml");
+    const parser = new DOMParser();
+    const gpxDoc = parser.parseFromString(gpxText, "application/xml");
     const geojson = togeojson.gpx(gpxDoc);
 
-    const coords = geojson.features.flatMap(f =>
-      f.geometry.coordinates.map(c => [c[1], c[0], c[2] || 0])
-    );
+    const coords = geojson.features[0].geometry.coordinates;
+    const latlngs = coords.map(c => [c[1], c[0]]);
+    const polyline = L.polyline(latlngs, { color: "blue" }).addTo(map);
+    map.fitBounds(polyline.getBounds());
 
-    const latlngs = coords.map(c => [c[0], c[1]]);
-    const elevations = coords.map(c => c[2] || 0);
+    const cumulativeDistances = [0];
+    for (let i = 1; i < latlngs.length; i++) {
+      const d = map.distance(latlngs[i - 1], latlngs[i]) / 1000;
+      cumulativeDistances.push(cumulativeDistances[i - 1] + d);
+    }
 
-    L.polyline(latlngs, { color: 'blue' }).addTo(map);
-    map.fitBounds(latlngs);
+    function getLatLngAtKm(km) {
+      for (let i = 1; i < cumulativeDistances.length; i++) {
+        if (cumulativeDistances[i] >= km) return latlngs[i];
+      }
+      return latlngs[latlngs.length - 1];
+    }
 
-    drawElevationChart(elevations);
-
-    // Aid station definitions with distances
     const aidStations = [
-      { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00" },
-      { name: "Kalmakaltio", km: 88, cutoff: "Tue 12:00" },
-      { name: "Hetta", km: 192, cutoff: "Thu 13:00" },
-      { name: "Pallas", km: 256, cutoff: "Fri 13:00" },
-      { name: "Rauhala", km: 277, cutoff: null },
-      { name: "Pahtavuoma", km: 288, cutoff: null },
-      { name: "Peurakaltio", km: 301, cutoff: null },
-      { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00" }
+      { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00", stopHrs: 0 },
+      { name: "Kalmakaltio", km: 88, cutoff: "Tue 12:00", stopHrs: parseFloat(document.getElementById("stopKalmakaltio").value) },
+      { name: "Hetta", km: 192, cutoff: "Thu 13:00", stopHrs: parseFloat(document.getElementById("stopHetta").value) },
+      { name: "Pallas", km: 256, cutoff: "Fri 13:00", stopHrs: parseFloat(document.getElementById("stopPallas").value) },
+      { name: "Rauhala", km: 277, cutoff: null, stopHrs: 0 },
+      { name: "Pahtavuoma", km: 288, cutoff: null, stopHrs: 0 },
+      { name: "Peurakaltio", km: 301, cutoff: null, stopHrs: 0 },
+      { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00", stopHrs: 0 }
     ];
 
     aidStations.forEach(station => {
-      const latlng = getLatLngAtKm(latlngs, station.km);
-      if (!latlng) return;
-
-      const marker = L.marker(latlng).addTo(map);
-      const popup = `<b>${station.name}</b><br>${station.km} km` + (station.cutoff ? `<br>⏱️ Cutoff: ${station.cutoff}` : "");
+      const marker = L.marker(getLatLngAtKm(station.km)).addTo(map);
+      const popup = `<b>${station.name}</b><br>km ${station.km}<br>Cutoff: ${station.cutoff || '—'}`;
       marker.bindPopup(popup);
     });
-  })
-  .catch(err => {
-    console.error("Error loading GPX:", err);
-  });
 
-// Get LatLng by interpolating at a specific distance (km)
-function getLatLngAtKm(latlngs, targetKm) {
-  let dist = 0;
-  for (let i = 1; i < latlngs.length; i++) {
-    const prev = L.latLng(latlngs[i - 1]);
-    const curr = L.latLng(latlngs[i]);
-    const segDist = prev.distanceTo(curr) / 1000;
-    if (dist + segDist >= targetKm) {
-      const ratio = (targetKm - dist) / segDist;
-      const lat = prev.lat + (curr.lat - prev.lat) * ratio;
-      const lng = prev.lng + (curr.lng - prev.lng) * ratio;
-      return [lat, lng];
+    function updatePlanner() {
+      const goalHours = parseFloat(document.getElementById("goalHours").value);
+      aidStations[1].stopHrs = parseFloat(document.getElementById("stopKalmakaltio").value);
+      aidStations[2].stopHrs = parseFloat(document.getElementById("stopHetta").value);
+      aidStations[3].stopHrs = parseFloat(document.getElementById("stopPallas").value);
+
+      const totalStopTime = aidStations.reduce((sum, s) => sum + s.stopHrs, 0);
+      const movingTime = goalHours - totalStopTime;
+      const movingSpeed = 326 / movingTime;
+
+      let output = `<table border="1" cellpadding="4"><tr>
+        <th>Section</th><th>Distance (km)</th><th>Move Time (h)</th><th>Stop Time (h)</th><th>ETA</th></tr>`;
+      
+      let cumulativeTime = 0;
+      const startDate = new Date("2025-09-01T12:00:00");
+
+      for (let i = 0; i < aidStations.length - 1; i++) {
+        const from = aidStations[i];
+        const to = aidStations[i + 1];
+        const dist = to.km - from.km;
+        const moveHrs = dist / movingSpeed;
+        cumulativeTime += moveHrs;
+        cumulativeTime += from.stopHrs;
+        const eta = new Date(startDate.getTime() + cumulativeTime * 3600 * 1000);
+        const etaStr = eta.toLocaleString("en-GB", { hour12: false });
+        output += `<tr><td>${from.name} → ${to.name}</td><td>${dist.toFixed(1)}</td>
+          <td>${moveHrs.toFixed(2)}</td><td>${from.stopHrs}</td><td>${etaStr}</td></tr>`;
+      }
+
+      const finishStop = aidStations[aidStations.length - 1];
+      output += `<tr><td>${finishStop.name}</td><td>-</td><td>-</td><td>${finishStop.stopHrs}</td><td>—</td></tr>`;
+      output += `</table>`;
+
+      document.getElementById("plannerOutput").innerHTML = output;
     }
-    dist += segDist;
-  }
-  return latlngs[latlngs.length - 1];
-}
 
-// Elevation chart with ECharts
-function drawElevationChart(elevations) {
-  const chart = echarts.init(document.getElementById('elevation-chart'));
-  const data = elevations.map((e, i) => [i / 10, e]); // 1 point every 100m
+    document.getElementById("updatePlan").addEventListener("click", updatePlanner);
+    updatePlanner();
 
-  chart.setOption({
-    tooltip: { trigger: 'axis' },
-    xAxis: { type: 'value', name: 'Distance (km)' },
-    yAxis: { type: 'value', name: 'Elevation (m)' },
-    series: [{
-      type: 'line',
-      data,
-      areaStyle: {},
-      lineStyle: { color: '#4A90E2' }
-    }]
+    // Elevation chart setup
+    const chart = echarts.init(document.getElementById("elevation"));
+    const elevationData = geojson.features[0].geometry.coordinates.map((c, i) => [
+      cumulativeDistances[i],
+      c[2] || 0
+    ]);
+
+    chart.setOption({
+      xAxis: { type: "value", name: "Distance (km)" },
+      yAxis: { type: "value", name: "Elevation (m)" },
+      series: [{ type: "line", data: elevationData }],
+      tooltip: { trigger: "axis" }
+    });
+  })
+  .catch(err => console.error("Error loading GPX:", err));
+
+// ✅ Register Service Worker
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js").then(() => {
+    console.log("✅ Service Worker registered");
   });
-}
-
-// Register service worker
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js')
-    .then(() => console.log("✅ Service Worker registered"))
-    .catch(err => console.error("Service Worker failed:", err));
 }
