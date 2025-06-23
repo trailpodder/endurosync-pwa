@@ -1,5 +1,8 @@
 // main.js
 
+document.addEventListener("DOMContentLoaded", () => {
+  const map = L.map("map").setView([68.3, 21.5], 9);
+
 // Remove existing map if it already exists (e.g., on reload)
 if (window.map) {
   window.map.remove();
@@ -133,3 +136,4 @@ function updatePlanner() {
 
 // Event listener
 document.getElementById('goalTime').addEventListener('input', updatePlanner);
+});
