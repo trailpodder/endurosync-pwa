@@ -6,11 +6,8 @@
   <title>EnduroSync PWA</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="favicon.ico" type="image/x-icon" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css" />
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
   <style>
     body, html {
       margin: 0;
@@ -19,10 +16,10 @@
       font-family: sans-serif;
     }
     #map {
-      height: 60vh;
+      height: 70%;
     }
     #chart {
-      height: 40vh;
+      height: 30%;
     }
   </style>
 </head>
@@ -30,12 +27,16 @@
   <div id="map"></div>
   <div id="chart"></div>
 
-  <!-- Required JS Libraries -->
-  <script src="https://unpkg.com/@tmcw/togeojson@0.16.0/dist/togeojson.umd.js"></script>
+  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- ECharts for elevation chart -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 
-  <!-- Your Main JS -->
-  <script src="main.js?v=20250621" defer></script>
+  <!-- toGeoJSON for parsing GPX -->
+  <script src="https://cdn.jsdelivr.net/npm/@tmcw/togeojson@0.16.0/dist/togeojson.umd.js"></script>
+
+  <!-- Main JS -->
+  <script src="main.js?v=20250621"></script>
 </body>
 </html>
