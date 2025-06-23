@@ -1,1 +1,31 @@
-var toGeoJSON = (function(){function n(n){return n.textContent||n.innerText||""}function t(n){return parseFloat(n)}function e(n){return parseInt(n)}function r(n){return n.getAttribute("lat")}function o(n){return n.getAttribute("lon")}function i(n){return"trk"===n.tagName}function u(n){return"rte"===n.tagName}function f(n,t){var e={type:"Feature",properties:{},geometry:{type:"LineString",coordinates:[]}},r=e.geometry.coordinates;return Array.from(n.getElementsByTagName(t)).forEach(function(n){var t=[parseFloat(o(n)),parseFloat(r(n))];Array.from(n.childNodes).forEach(function(e){var r=e.tagName;if("ele"===r)t.push(parseFloat(n.getElementsByTagName("ele")[0]?.textContent||0))}),r.push(t)}),e}function c(n){return{type:"FeatureCollection",features:Array.from(n.documentElement.children).filter(function(n){return i(n)||u(n)}).map(function(n){var t=i(n)?"trkpt":"rtept";var e=f(n,t);return e.properties.name=n.getElementsByTagName("name")[0]?.textContent||"",e})}}return{gpx:c}})();
+// Minimal browser-compatible GPX to GeoJSON converter
+window.toGeoJSON = {
+  gpx: function (doc) {
+    const tracks = Array.from(doc.getElementsByTagName('trk'));
+    const features = tracks.map(trk => {
+      const segments = Array.from(trk.getElementsByTagName('trkseg')).map(seg => {
+        const trkpts = Array.from(seg.getElementsByTagName('trkpt'));
+        return trkpts.map(pt => {
+          const lat = parseFloat(pt.getAttribute('lat'));
+          const lon = parseFloat(pt.getAttribute('lon'));
+          const eleEl = pt.getElementsByTagName('ele')[0];
+          const ele = eleEl ? parseFloat(eleEl.textContent) : 0;
+          return [lon, lat, ele];
+        });
+      }).flat();
+      return {
+        type: "Feature",
+        geometry: {
+          type: "LineString",
+          coordinates: segments
+        },
+        properties: {}
+      };
+    });
+
+    return {
+      type: "FeatureCollection",
+      features: features
+    };
+  }
+};
