@@ -5,15 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>NUTS 300 Planner</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="icon" href="favicon.ico" type="image/x-icon" />
-  <script src="leaflet.js"></script>
-  <script src="echarts.min.js"></script>
-  <script src="togeojson.js"></script>
+  <style>
+    #map { height: 400px; }
+    #elevation { height: 200px; margin-top: 10px; }
+    body { font-family: sans-serif; padding: 1em; }
+    input { margin: 0.25em; }
+  </style>
+
+  <!-- Load libraries via CDN -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <script src="https://unpkg.com/togeojson@0.16.0/dist/togeojson.umd.js"></script>
 </head>
 <body>
   <h1>NUTS 300 Planner</h1>
-  
+
   <div>
     <label for="goalHours">Goal Time (hours):</label>
     <input type="number" id="goalHours" value="90" min="50" max="120" />
@@ -28,10 +36,11 @@
 
   <button id="updatePlan">Update Plan</button>
 
-  <div id="map" style="height: 400px; margin-top: 20px;"></div>
-  <div id="elevation" style="height: 200px;"></div>
+  <div id="map"></div>
+  <div id="elevation"></div>
   <div id="plannerOutput" style="margin-top: 20px;"></div>
 
-  <script type="module" src="main.js?v=20250621"></script>
+  <!-- Load main app logic -->
+  <script src="main.js?v=20250621"></script>
 </body>
 </html>
