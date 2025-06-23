@@ -25,6 +25,7 @@ fetch('nuts300.gpx')
 
     // Aid station definitions with distances
     const aidStations = [
+      { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00" },
       { name: "Kalmakaltio", km: 88, cutoff: "Tue 12:00" },
       { name: "Hetta", km: 192, cutoff: "Thu 13:00" },
       { name: "Pallas", km: 256, cutoff: "Fri 13:00" },
