@@ -1,148 +1,111 @@
-window.addEventListener("load", async () => {
-  const map = L.map("map").setView([68.5, 21.5], 8);
+// main.js
+
+let map;
+let chart;
+
+window.addEventListener("DOMContentLoaded", async () => {
+  map = L.map("map").setView([68.5, 21.0], 8);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: '© OpenStreetMap contributors',
+    maxZoom: 18,
   }).addTo(map);
 
-  // Aid station definitions
-  const aidStations = [
-    { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00", rest: 0 },
-    { name: "Kalmakaltio", km: 88, cutoff: "Tue 12:00", rest: 1 },
-    { name: "Hetta", km: 192, cutoff: "Thu 13:00", rest: 2 },
-    { name: "Pallas", km: 256, cutoff: "Fri 13:00", rest: 3 },
-    { name: "Rauhala", km: 277, cutoff: null, rest: 0 },
-    { name: "Pahtavuoma", km: 288, cutoff: null, rest: 0 },
-    { name: "Peurakaltio", km: 301, cutoff: null, rest: 0 },
-    { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00", rest: 0 }
-  ];
-
-  const fetchGPX = async () => {
-    const res = await fetch("nuts300.gpx");
-    const gpxText = await res.text();
-    const parser = new DOMParser();
-    const gpxDoc = parser.parseFromString(gpxText, "application/xml");
-    return toGeoJSON.gpx(gpxDoc);
-  };
-
-  const formatTime = (date) =>
-    date.toLocaleString("en-GB", {
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-  const parseCutoff = (label) => {
-    const parts = label.split(" ");
-    const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const now = new Date();
-    const cutoff = new Date(now);
-    const targetDay = weekdays.indexOf(parts[0]);
-    const currentDay = now.getDay();
-    const daysDiff = (targetDay - currentDay + 7) % 7;
-    cutoff.setDate(now.getDate() + daysDiff);
-    const [hour, minute] = parts[1].split(":").map(Number);
-    cutoff.setHours(hour, minute, 0, 0);
-    return cutoff;
-  };
-
-  const updatePlanner = (geojson) => {
-    const goalInput = document.getElementById("goal-time");
-    const output = document.getElementById("planner-output");
-
-    const refresh = () => {
-      const goalHours = parseFloat(goalInput.value);
-      const totalRest = aidStations.reduce((sum, s) => sum + (s.rest || 0), 0);
-      const movingHours = goalHours - totalRest;
-      const totalKm = aidStations[aidStations.length - 1].km;
-      const paceMinPerKm = (movingHours * 60) / totalKm;
-
-      let currentTime = new Date();
-      currentTime.setHours(12, 0, 0, 0); // Assume start Monday 12:00
-
-      let result = `<p>Goal Time: <strong>${goalHours}h</strong>, Pace: ${paceMinPerKm.toFixed(1)} min/km</p>`;
-      result += `<table border="1" cellpadding="4"><tr>
-        <th>Station</th><th>KM</th><th>Arrival</th><th>Rest</th><th>Cutoff</th><th>Status</th></tr>`;
-
-      for (let i = 0; i < aidStations.length; i++) {
-        const station = aidStations[i];
-        const prev = aidStations[i - 1];
-        const dist = i === 0 ? 0 : station.km - prev.km;
-        const movingMinutes = dist * paceMinPerKm;
-        currentTime = new Date(currentTime.getTime() + movingMinutes * 60 * 1000);
-        const arrivalStr = formatTime(currentTime);
-
-        let status = "✅";
-        if (station.cutoff) {
-          const cutoffTime = parseCutoff(station.cutoff);
-          const totalArrival = new Date(currentTime.getTime() + (station.rest || 0) * 3600 * 1000);
-          if (totalArrival > cutoffTime) {
-            status = "🔴 Exceeds cutoff!";
-          }
-        }
-
-        result += `<tr>
-          <td>${station.name}</td>
-          <td>${station.km} km</td>
-          <td>${arrivalStr}</td>
-          <td>${station.rest} h</td>
-          <td>${station.cutoff || "-"}</td>
-          <td>${status}</td>
-        </tr>`;
-
-        currentTime = new Date(currentTime.getTime() + (station.rest || 0) * 3600 * 1000);
-      }
-
-      result += "</table>";
-      output.innerHTML = result;
-    };
-
-    goalInput.addEventListener("input", refresh);
-    refresh();
-  };
-
   try {
-    const geojson = await fetchGPX();
+    const response = await fetch("nuts300.gpx");
+    const gpxText = await response.text();
+    const parser = new DOMParser();
+    const gpxDom = parser.parseFromString(gpxText, "application/xml");
+    const geojson = toGeoJSON.gpx(gpxDom);
 
-    const route = L.geoJSON(geojson, {
-      style: { color: "blue", weight: 3 }
-    }).addTo(map);
+    const route = geojson.features.find(f => f.geometry.type === "LineString");
+    const coordinates = route.geometry.coordinates;
 
-    const latlngs = geojson.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
-    map.fitBounds(latlngs);
+    // Calculate cumulative distances
+    const distances = [0];
+    for (let i = 1; i < coordinates.length; i++) {
+      const [lon1, lat1] = coordinates[i - 1];
+      const [lon2, lat2] = coordinates[i];
+      const d = turf.distance(turf.point([lon1, lat1]), turf.point([lon2, lat2]));
+      distances.push(distances[i - 1] + d);
+    }
 
-    // Elevation chart
-    const elevation = geojson.features[0].geometry.coordinates.map((coord, i) => ({
-      distance: i / 10,
-      ele: coord[2] || 0,
-    }));
+    // Aid station data
+    const aidStations = [
+      { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00", rest: 0 },
+      { name: "Kalmakaltio", km: 88, cutoff: "Tue 12:00", rest: 1 },
+      { name: "Hetta", km: 192, cutoff: "Thu 13:00", rest: 2 },
+      { name: "Pallas", km: 256, cutoff: "Fri 13:00", rest: 3 },
+      { name: "Rauhala", km: 277, cutoff: null, rest: 0 },
+      { name: "Pahtavuoma", km: 288, cutoff: null, rest: 0 },
+      { name: "Peurakaltio", km: 301, cutoff: null, rest: 0 },
+      { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00", rest: 0 },
+    ];
 
-    const chart = echarts.init(document.getElementById("chart"));
-    chart.setOption({
-      tooltip: { trigger: "axis" },
-      xAxis: { type: "value", name: "Distance (km)" },
-      yAxis: { type: "value", name: "Elevation (m)" },
-      series: [{ type: "line", data: elevation.map(p => [p.distance, p.ele]), areaStyle: {} }],
-    });
+    const goalHours = parseFloat(document.getElementById("goalTime").value);
+    const totalRest = aidStations.reduce((sum, s) => sum + (s.rest || 0), 0);
+    const movingHours = goalHours - totalRest;
+    const pace = 326 / movingHours;
 
-    // Aid station markers
-    aidStations.forEach((station) => {
-      const km = station.km;
-      const totalDistance = elevation.length / 10;
-      const idx = Math.floor((km / totalDistance) * elevation.length);
-      const coord = latlngs[idx];
-      if (coord) {
-        L.marker(coord)
-          .addTo(map)
-          .bindPopup(`${station.name} (${km} km)`);
+    // Calculate arrival and departure times
+    const plannerList = document.getElementById("plannerList");
+    plannerList.innerHTML = "";
+
+    const startTime = luxon.DateTime.fromFormat("2025-09-01 12:00", "yyyy-MM-dd HH:mm");
+    let currentTime = startTime;
+
+    for (let i = 0; i < aidStations.length; i++) {
+      const a = aidStations[i];
+      const prevKm = i === 0 ? 0 : aidStations[i - 1].km;
+      const legDistance = a.km - prevKm;
+      const legTime = legDistance / pace;
+      currentTime = currentTime.plus({ hours: legTime });
+
+      const arrival = currentTime;
+      const departure = arrival.plus({ hours: a.rest || 0 });
+
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <strong>${a.name}</strong><br>
+        Distance: ${a.km} km<br>
+        Arrival: ${arrival.toFormat("ccc HH:mm")}<br>
+        Rest: ${a.rest || 0} h<br>
+        Departure: ${departure.toFormat("ccc HH:mm")}<br>
+        ${a.cutoff ? `Cutoff: ${a.cutoff} ${departure > luxon.DateTime.fromFormat(a.cutoff, "ccc HH:mm") ? '❌' : '✅'}` : ""}
+      `;
+      plannerList.appendChild(li);
+
+      // Find nearest coordinate
+      const idx = distances.findIndex(d => d >= a.km);
+      if (idx !== -1) {
+        const [lon, lat] = coordinates[idx];
+        L.marker([lat, lon]).addTo(map).bindPopup(a.name);
       }
+
+      currentTime = departure;
+    }
+
+    // Draw route
+    const latlngs = coordinates.map(([lon, lat]) => [lat, lon]);
+    L.polyline(latlngs, { color: "blue" }).addTo(map);
+    map.fitBounds(L.polyline(latlngs).getBounds());
+
+    // Elevation chart (dummy values)
+    const elevation = geojson.features[0].properties.ele || [];
+    chart = echarts.init(document.getElementById("elevation"));
+    chart.setOption({
+      xAxis: { type: "category", data: distances.map(d => d.toFixed(1)) },
+      yAxis: { type: "value", name: "Elevation (m)" },
+      series: [{
+        type: "line",
+        data: elevation,
+      }],
+      tooltip: { trigger: "axis" }
     });
 
-    updatePlanner(geojson);
-  } catch (err) {
-    console.error("Error loading GPX:", err);
+  } catch (error) {
+    console.error("Error loading GPX:", error);
   }
 
-  // Service worker registration
+  // Service Worker
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").then(() => {
       console.log("✅ Service Worker registered");
