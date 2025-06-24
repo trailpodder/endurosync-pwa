@@ -3,69 +3,90 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NUTS 300 Planner</title>
+  <title>EnduroSync NUTS 300 Planner</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="favicon.ico" type="image/x-icon" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="style.css" />
   <style>
     body {
       font-family: sans-serif;
       margin: 0;
       padding: 0;
     }
+
     #map {
-      height: 300px;
+      height: 400px;
+      width: 100%;
     }
+
     #elevation {
       height: 200px;
       width: 100%;
     }
+
     #planner {
-      padding: 1em;
+      padding: 1rem;
     }
-    #planner input {
-      width: 60px;
-      margin-left: 5px;
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
     }
-    #plannerOutput div {
-      margin-bottom: 0.5em;
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 0.5rem;
+      text-align: center;
+    }
+
+    th {
+      background-color: #f0f0f0;
+    }
+
+    label, input {
+      margin-right: 1rem;
+    }
+
+    input[type="number"] {
+      width: 5rem;
     }
   </style>
 </head>
 <body>
-  <h1>NUTS 300 Planner</h1>
   <div id="map"></div>
   <div id="elevation"></div>
 
   <div id="planner">
-    <p>
-      Goal time (hours):
-      <input type="number" id="goalTime" value="90" min="50" max="120" step="1" />
-    </p>
-    <div id="plannerOutput"></div>
+    <h2>NUTS 300 Planner</h2>
+    <label for="goalTime">Goal Time (hours):</label>
+    <input type="number" id="goalTime" value="90" min="1" />
+    <button onclick="updatePlanner()">Update Planner</button>
+
+    <table id="plannerTable">
+      <thead>
+        <tr>
+          <th>From</th>
+          <th>To</th>
+          <th>Distance (km)</th>
+          <th>Section Time</th>
+          <th>Arrival Time</th>
+          <th>Rest Time</th>
+          <th>Departure Time</th>
+          <th>Cutoff</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </div>
 
-  <!-- Leaflet and plugins -->
+  <!-- Libraries -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- ECharts -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-
-  <!-- Turf.js for distance calculations -->
-  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
-
-  <!-- toGeoJSON (local file saved in same directory) -->
   <script src="togeojson.js"></script>
 
-  <!-- Main app -->
+  <!-- App code -->
   <script type="module" src="main.js?v=20250621"></script>
-
-  <!-- Service worker (optional) -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').then(() => {
-        console.log('✅ Service Worker registered');
-      });
-    }
-  </script>
 </body>
 </html>
