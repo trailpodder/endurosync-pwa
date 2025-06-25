@@ -3,20 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>NUTS 300 Planner</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <title>EnduroSync Pacing Planner</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: sans-serif;
       margin: 0;
+      padding: 0;
     }
     #map {
-      height: 400px;
+      height: 300px;
     }
-    #chart {
+    #elevation-chart {
+      width: 100%;
       height: 200px;
     }
-    #controls {
+    .planner {
       padding: 1em;
     }
     table {
@@ -26,51 +28,42 @@
     }
     th, td {
       border: 1px solid #ccc;
-      padding: 0.5em;
+      padding: 0.4em;
       text-align: center;
     }
     input[type="number"] {
-      width: 60px;
+      width: 3em;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div id="chart"></div>
-  <div id="controls">
-    <label>
-      Goal Time (hours):
-      <input type="number" id="goalTime" value="90" min="50" max="120">
-    </label>
-    <button onclick="recalculatePlan()">Recalculate Plan</button>
+  <div id="elevation-chart"></div>
 
-    <table id="planTable">
+  <div class="planner">
+    <h2>NUTS 300 Pacing Planner</h2>
+    <label for="goal-time">Goal Finish Time (hours):</label>
+    <input type="number" id="goal-time" value="90" min="50" max="120" step="1" />
+    <button id="recalc">Recalculate Plan</button>
+
+    <table id="plan-table">
       <thead>
         <tr>
-          <th>From</th>
-          <th>To</th>
-          <th>Distance (km)</th>
-          <th>Section Time</th>
-          <th>Pace (km/h)</th>
+          <th>Section</th>
           <th>Rest (h)</th>
+          <th>Dist (km)</th>
+          <th>Time (h)</th>
+          <th>Pace (km/h)</th>
         </tr>
       </thead>
       <tbody></tbody>
-      <tfoot>
-        <tr>
-          <th colspan="2">Total</th>
-          <th id="totalDistance">0</th>
-          <th id="totalTime">0</th>
-          <th colspan="2"></th>
-        </tr>
-      </tfoot>
     </table>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <!-- Scripts -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-  <script src="togeojson.js"></script> <!-- Must be global script -->
-  <script src="main.js?v=latest"></script>
-
+  <script src="./togeojson.js"></script>
+  <script type="module" src="./main.js?v=latest"></script>
 </body>
 </html>
