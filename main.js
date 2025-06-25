@@ -1,146 +1,159 @@
-// main.js
-let map;
-let elevationChart;
+import { gpx } from './togeojson.js';
 
-document.addEventListener("DOMContentLoaded", () => {
-  map = L.map("map").setView([68.5, 22.5], 7);
+const aidStations = [
+  { name: "Start (Njurkulahti)", km: 0, cutoff: "Mon 12:00", rest: 0 },
+  { name: "Kalmakaltio", km: 88, cutoff: "Tue 12:00", rest: 1 },
+  { name: "Hetta", km: 192, cutoff: "Thu 13:00", rest: 2 },
+  { name: "Pallas", km: 256, cutoff: "Fri 13:00", rest: 3 },
+  { name: "Rauhala", km: 277, cutoff: null, rest: 0 },
+  { name: "Pahtavuoma", km: 288, cutoff: null, rest: 0 },
+  { name: "Peurakaltio", km: 301, cutoff: null, rest: 0 },
+  { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00", rest: 0 }
+];
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 18,
-  }).addTo(map);
+let routeCoords = [];
 
-  fetch("nuts300.gpx")
-    .then((res) => res.text())
-    .then((gpxText) => {
-      const parser = new DOMParser();
-      const gpxDom = parser.parseFromString(gpxText, "application/xml");
-      const geojson = toGeoJSON.gpx(gpxDom);
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    const gpxRes = await fetch("nuts300.gpx");
+    const gpxText = await gpxRes.text();
+    const parser = new DOMParser();
+    const gpxDom = parser.parseFromString(gpxText, "application/xml");
+    const geojson = gpx(gpxDom);
 
-      if (!geojson.features || !geojson.features[0]) {
-        throw new Error("No features found in GPX");
-      }
-
-      const track = geojson.features[0].geometry.coordinates.map(([lon, lat, ele]) => [lat, lon, ele]);
-
-      const line = L.polyline(track.map(p => [p[0], p[1]]), { color: "blue" }).addTo(map);
-      map.fitBounds(line.getBounds());
-
-      showElevation(track);
-      showPlanner(track);
-    })
-    .catch((err) => {
-      console.error("Error loading GPX:", err);
-    });
-
-  document.getElementById("recalc").addEventListener("click", () => {
-    const goalHours = parseFloat(document.getElementById("goal-time").value);
-    showPlanner(null, goalHours);
-  });
+    routeCoords = geojson.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+    initMap(routeCoords);
+    renderElevationChart(routeCoords);
+    renderPlanner();
+    document.getElementById("recalculate").addEventListener("click", renderPlanner);
+  } catch (e) {
+    console.error("Error loading GPX:", e);
+  }
 });
 
-function showElevation(track) {
-  const elevation = track.map((pt) => pt[2] || 0);
-  const distance = track.map((_, i) => i * 0.05); // approx every 50m
+function initMap(coords) {
+  const map = L.map("map").setView(coords[0], 10);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
 
-  const chartDom = document.getElementById("elevation-chart");
-  elevationChart = echarts.init(chartDom);
-  elevationChart.setOption({
-    xAxis: {
-      type: "category",
-      data: distance,
-      name: "km",
-    },
-    yAxis: {
-      type: "value",
-      name: "elevation (m)",
-    },
-    series: [
-      {
-        data: elevation,
-        type: "line",
-        areaStyle: {},
-        lineStyle: { width: 1 },
-      },
-    ],
-    tooltip: {
-      trigger: "axis",
-    },
+  const polyline = L.polyline(coords, { color: "blue" }).addTo(map);
+  map.fitBounds(polyline.getBounds());
+
+  aidStations.forEach(station => {
+    const latlng = getLatLngAtKm(station.km);
+    if (latlng) {
+      L.marker(latlng).addTo(map).bindPopup(`${station.name} (${station.km} km)`);
+    }
   });
 }
 
-function showPlanner(track, goalTime = 90) {
-  const aidStations = [
-    { name: "Start: Njurkulahti", km: 0, rest: 0 },
-    { name: "Sioskuru", km: 22, rest: 0 },
-    { name: "Kotikuru", km: 47, rest: 0 },
-    { name: "Hannukuru", km: 73, rest: 0 },
-    { name: "Pahakuru", km: 92, rest: 0 },
-    { name: "Kalmakaltio", km: 124, rest: 1, cutoff: "Tue 23:00" },
-    { name: "Hetta", km: 176, rest: 2, cutoff: "Wed 13:00" },
-    { name: "Pallas", km: 238, rest: 3, cutoff: "Thu 07:00" },
-    { name: "Finish", km: 326, rest: 0, cutoff: "Fri 06:00" },
-  ];
-
-  const tbody = document.querySelector("#plan-table tbody");
-  tbody.innerHTML = "";
-
+function getLatLngAtKm(targetKm) {
   let totalDist = 0;
+  for (let i = 1; i < routeCoords.length; i++) {
+    const [lat1, lon1] = routeCoords[i - 1];
+    const [lat2, lon2] = routeCoords[i];
+    const d = getDistance(lat1, lon1, lat2, lon2);
+    totalDist += d;
+    if (totalDist >= targetKm) return [lat2, lon2];
+  }
+  return routeCoords[routeCoords.length - 1];
+}
+
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371, toRad = deg => deg * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+function renderElevationChart(coords) {
+  const el = document.getElementById("elevation");
+  const distances = [0];
+  let total = 0;
+
+  for (let i = 1; i < coords.length; i++) {
+    const d = getDistance(coords[i - 1][0], coords[i - 1][1], coords[i][0], coords[i][1]);
+    total += d;
+    distances.push(total);
+  }
+
+  const heights = coords.map(c => c[2] || 0);
+
+  const chart = echarts.init(el);
+  chart.setOption({
+    xAxis: {
+      type: 'category',
+      data: distances.map(d => d.toFixed(1)),
+      name: 'Distance (km)',
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Elevation (m)',
+    },
+    series: [{
+      data: heights,
+      type: 'line',
+      areaStyle: {},
+    }],
+    tooltip: {
+      trigger: 'axis'
+    }
+  });
+}
+
+function renderPlanner() {
+  const table = document.getElementById("planner-table");
+  table.innerHTML = "";
+
+  const goalHours = parseFloat(document.getElementById("goalTime").value);
+  const totalDistance = aidStations[aidStations.length - 1].km;
+
+  let totalRest = 0;
+  aidStations.forEach((s, i) => {
+    const restVal = parseFloat(document.getElementById(`rest-${i}`)?.value || s.rest || 0);
+    s.rest = restVal;
+    totalRest += restVal;
+  });
+
+  const movingTime = goalHours - totalRest;
+  const movingPace = totalDistance / movingTime;
+
+  let rows = "";
   let totalTime = 0;
 
   for (let i = 1; i < aidStations.length; i++) {
-    const prev = aidStations[i - 1];
-    const curr = aidStations[i];
-    const dist = curr.km - prev.km;
-    const rest = curr.rest || 0;
+    const from = aidStations[i - 1];
+    const to = aidStations[i];
+    const sectionDist = to.km - from.km;
+    const time = sectionDist / movingPace;
+    const pace = (sectionDist / time).toFixed(2);
+    totalTime += time + from.rest;
 
-    totalDist += dist;
+    rows += `
+      <tr>
+        <td>${from.name} → ${to.name}</td>
+        <td>${sectionDist.toFixed(1)}</td>
+        <td>${time.toFixed(1)} h</td>
+        <td>${pace} km/h</td>
+        <td><input id="rest-${i}" type="number" value="${to.rest || 0}" step="0.1" min="0" style="width:50px" /></td>
+        <td>${to.cutoff || "-"}</td>
+        <td><input type="text" placeholder="Notes..." style="width:100%" /></td>
+      </tr>`;
   }
 
-  // Total moving time without rest
-  const totalRest = aidStations.reduce((sum, a) => sum + (a.rest || 0), 0);
-  const movingTime = goalTime - totalRest;
+  rows += `
+    <tr style="font-weight:bold; background:#eee">
+      <td>Total</td>
+      <td>${totalDistance.toFixed(1)}</td>
+      <td>${(goalHours).toFixed(1)} h</td>
+      <td>${movingPace.toFixed(2)} km/h</td>
+      <td>${totalRest.toFixed(1)} h</td>
+      <td colspan="2"></td>
+    </tr>`;
 
-  let sectionTimes = [];
-  let timeAccum = 0;
-
-  for (let i = 1; i < aidStations.length; i++) {
-    const prev = aidStations[i - 1];
-    const curr = aidStations[i];
-    const dist = curr.km - prev.km;
-
-    const sectionTime = dist / (totalDist / movingTime);
-    const pace = dist / sectionTime;
-
-    totalTime += sectionTime + (curr.rest || 0);
-    sectionTimes.push({
-      section: `${prev.name} → ${curr.name}`,
-      rest: curr.rest || 0,
-      dist: dist.toFixed(1),
-      time: sectionTime.toFixed(1),
-      pace: pace.toFixed(2),
-    });
-  }
-
-  for (const sec of sectionTimes) {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${sec.section}</td>
-      <td>${sec.rest}</td>
-      <td>${sec.dist}</td>
-      <td>${sec.time}</td>
-      <td>${sec.pace}</td>
-    `;
-    tbody.appendChild(row);
-  }
-
-  const sumRow = document.createElement("tr");
-  sumRow.style.fontWeight = "bold";
-  sumRow.innerHTML = `
-    <td>Total</td>
-    <td>${totalRest}</td>
-    <td>${totalDist.toFixed(1)}</td>
-    <td>${(totalTime).toFixed(1)}</td>
-    <td>-</td>
-  `;
-  tbody.appendChild(sumRow);
+  table.innerHTML = rows;
 }
