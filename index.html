@@ -4,46 +4,57 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>NUTS 300 Planner</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
-    body { font-family: sans-serif; margin: 0; }
-    #map { height: 300px; }
-    #elevation { height: 200px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 1em; }
-    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+    #map { height: 300px; margin-bottom: 1rem; }
+    #chart { height: 200px; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 0.5em; text-align: center; }
+    th { background: #f4f4f4; }
     input[type="number"] { width: 60px; }
   </style>
 </head>
 <body>
   <h1>NUTS 300 Planner</h1>
 
-  <div id="map"></div>
-  <div id="elevation"></div>
-
-  <div style="margin: 1em 0;">
-    <label>Goal time (hours): 
-      <input id="goalTime" type="number" value="90" step="1" />
-    </label>
+  <div>
+    <label>Goal Time (hours): <input type="number" id="goalTime" value="90" /></label>
     <button id="recalculate">Recalculate Plan</button>
   </div>
 
-  <table>
+  <div id="map"></div>
+  <div id="chart"></div>
+
+  <h2>Planned Aid Station Strategy</h2>
+  <table id="planTable">
     <thead>
       <tr>
         <th>Section</th>
         <th>Distance (km)</th>
-        <th>Time (h)</th>
+        <th>Time (hh:mm)</th>
         <th>Pace (km/h)</th>
-        <th>Rest (h)</th>
+        <th>Rest (hh:mm)</th>
         <th>Cutoff</th>
         <th>Notes</th>
       </tr>
     </thead>
-    <tbody id="planner-table"></tbody>
+    <tbody></tbody>
+    <tfoot>
+      <tr>
+        <th>Total</th>
+        <th id="totalKm"></th>
+        <th id="totalTime"></th>
+        <th colspan="4"></th>
+      </tr>
+    </tfoot>
   </table>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+  <!-- External Libraries -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <script src="https://unpkg.com/togeojson@0.16.0/togeojson.js"></script>
+
+  <!-- App Logic -->
   <script type="module" src="./main.js?v=latest"></script>
 </body>
 </html>
