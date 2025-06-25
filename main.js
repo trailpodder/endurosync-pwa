@@ -1,104 +1,127 @@
-// main.js
-
-import { gpx } from './togeojson.js';
-
-const map = L.map('map').setView([68.5, 21], 8);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
-}).addTo(map);
-
-const elevationChart = echarts.init(document.getElementById('elevation-chart'));
-
 const aidStations = [
-  { name: 'Start: Njurkulahti', km: 0, cutoff: '2025-08-25T12:00:00', rest: 0 },
-  { name: 'Kalmankaltio', km: 88, cutoff: '2025-08-26T12:00:00', rest: 1 },
-  { name: 'Hetta', km: 157, cutoff: '2025-08-27T18:00:00', rest: 2 },
-  { name: 'Pallas', km: 233, cutoff: '2025-08-28T12:00:00', rest: 3 },
-  { name: 'Finish: Ylläs', km: 326, cutoff: '2025-08-29T06:00:00', rest: 0 }
+  { name: "Start: Njurkulahti", km: 0, cutoff: "2025-08-11T12:00:00+03:00" },
+  { name: "Kalmakaltio", km: 88, cutoff: "2025-08-12T12:00:00+03:00" },
+  { name: "Hetta", km: 174, cutoff: "2025-08-13T12:00:00+03:00" },
+  { name: "Pallas", km: 230, cutoff: "2025-08-14T00:00:00+03:00" },
+  { name: "Finish: Ylläs", km: 326, cutoff: "2025-08-15T06:00:00+03:00" },
 ];
 
-const goalTimeInput = document.getElementById('goal-time');
-const restInputs = document.querySelectorAll('.rest-time');
-const planTable = document.getElementById('plan-table');
-const recalcBtn = document.getElementById('recalc-btn');
+// Estimated difficulty multipliers per section (terrain/fatigue)
+const paceModifiers = [1.0, 1.1, 1.2, 1.15];
 
-function parseTime(str) {
-  return new Date(str).getTime();
+const gpxUrl = "nuts300.gpx";
+let chart, map, geojson;
+
+// Initialize map
+map = L.map("map").setView([68.3, 23.7], 8);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 18,
+}).addTo(map);
+
+// Load GPX and render
+fetch(gpxUrl)
+  .then(res => res.text())
+  .then(gpxText => {
+    const parser = new DOMParser();
+    const gpxDoc = parser.parseFromString(gpxText, "application/xml");
+    geojson = toGeoJSON.gpx(gpxDoc);
+    const gpxLine = L.geoJSON(geojson).addTo(map);
+    map.fitBounds(gpxLine.getBounds());
+    addAidMarkers();
+    drawElevationChart();
+    buildPacePlan();
+  })
+  .catch(err => console.error("Error loading GPX:", err));
+
+// Add aid station markers
+function addAidMarkers() {
+  aidStations.forEach(station => {
+    const pt = geojson.features[0].geometry.coordinates.find(
+      (coord, i) =>
+        geojson.features[0].properties.coordTimes &&
+        i === 0 || // crude matching based on distance index
+        Math.abs(coord[0] - station.lon) < 0.1
+    );
+    if (pt) {
+      L.marker([pt[1], pt[0]]).addTo(map).bindPopup(`${station.name} (${station.km} km)`);
+    }
+  });
 }
 
-function formatTime(h) {
-  const hrs = Math.floor(h);
-  const mins = Math.round((h - hrs) * 60);
-  return `${hrs}h ${mins}min`;
+// Draw elevation chart
+function drawElevationChart() {
+  const coords = geojson.features[0].geometry.coordinates;
+  const elevations = geojson.features[0].properties.coordTimes?.map((t, i) => ({
+    distance: i * 0.1, // placeholder, should be actual distance
+    elevation: coords[i]?.[2] || 0,
+  })) || [];
+
+  chart = echarts.init(document.getElementById("chart"));
+  chart.setOption({
+    tooltip: { trigger: "axis" },
+    xAxis: { type: "category", data: elevations.map(e => e.distance.toFixed(1)) },
+    yAxis: { type: "value", name: "Elevation (m)" },
+    series: [{ type: "line", data: elevations.map(e => e.elevation), smooth: true }]
+  });
 }
 
-function recalculatePlan() {
-  const goalHours = parseFloat(goalTimeInput.value);
-  const restTimes = Array.from(restInputs).map(input => parseFloat(input.value));
-  aidStations.forEach((s, i) => s.rest = restTimes[i]);
+// Pace planner
+function buildPacePlan() {
+  const goal = parseFloat(document.getElementById("goalTime").value);
+  const restK = parseFloat(document.getElementById("restKalmakaltio").value);
+  const restH = parseFloat(document.getElementById("restHetta").value);
+  const restP = parseFloat(document.getElementById("restPallas").value);
+  const restTimes = [0, restK, restH, restP, 0];
 
-  const cutoffTimes = aidStations.map(s => parseTime(s.cutoff));
-  const arrivalTimes = [parseTime(aidStations[0].cutoff)];
-  const sectionTimes = [];
-  const paces = [];
+  const totalRest = restTimes.reduce((a, b) => a + b, 0);
+  const movingTime = goal - totalRest;
+
+  const sections = [];
+  let totalDistance = 0;
+  let totalMovingTime = 0;
 
   for (let i = 1; i < aidStations.length; i++) {
     const dist = aidStations[i].km - aidStations[i - 1].km;
-    const cutoff = cutoffTimes[i];
-    const latestArrival = cutoff - (aidStations[i].rest + 1) * 3600000; // ms
-    const sectionTimeMs = latestArrival - arrivalTimes[i - 1];
-    const sectionTimeHr = sectionTimeMs / 3600000;
-    const pace = dist / sectionTimeHr;
+    const mod = paceModifiers[i - 1];
+    const rawTime = dist / 326 * movingTime * mod;
+    const pace = dist / rawTime;
+    totalDistance += dist;
+    totalMovingTime += rawTime;
 
-    paces.push(pace);
-    sectionTimes.push(sectionTimeHr);
-    arrivalTimes.push(arrivalTimes[i - 1] + sectionTimeMs);
+    sections.push({
+      name: `${aidStations[i - 1].name} → ${aidStations[i].name}`,
+      dist: dist,
+      time: rawTime,
+      pace: pace,
+      rest: restTimes[i]
+    });
   }
 
-  const totalTime = sectionTimes.reduce((a, b) => a + b, 0);
-  const totalKm = aidStations[aidStations.length - 1].km;
+  const tbody = document.querySelector("#planTable tbody");
+  tbody.innerHTML = "";
+  sections.forEach(s => {
+    const row = `<tr>
+      <td>${s.name}</td>
+      <td>${s.dist.toFixed(1)}</td>
+      <td>${formatHours(s.time)}</td>
+      <td>${s.pace.toFixed(2)}</td>
+      <td>${s.rest}</td>
+    </tr>`;
+    tbody.insertAdjacentHTML("beforeend", row);
+  });
 
-  planTable.innerHTML = `
-    <tr><th>From → To</th><th>Distance (km)</th><th>Time</th><th>Pace (km/h)</th><th>Rest (h)</th><th>Strategy</th></tr>
-    ${aidStations.slice(1).map((s, i) => {
-      const from = aidStations[i].name.split(': ')[1] || aidStations[i].name;
-      const to = s.name.split(': ')[1] || s.name;
-      return `<tr>
-        <td>${from} → ${to}</td>
-        <td>${(s.km - aidStations[i].km).toFixed(1)}</td>
-        <td>${formatTime(sectionTimes[i])}</td>
-        <td>${paces[i].toFixed(2)}</td>
-        <td>${s.rest}</td>
-        <td><input type="text" placeholder="Strategy notes"></td>
-      </tr>`;
-    }).join('')}
-    <tr><th>Total</th><th>${totalKm}</th><th>${formatTime(totalTime)}</th><th colspan="3"></th></tr>
-  `;
+  document.getElementById("totalDistance").textContent = totalDistance.toFixed(1);
+  document.getElementById("totalTime").textContent = formatHours(totalMovingTime);
+  document.getElementById("avgPace").textContent = (totalDistance / totalMovingTime).toFixed(2);
+  document.getElementById("totalRest").textContent = totalRest;
 }
 
-recalcBtn.addEventListener('click', recalculatePlan);
+// Format hours to HH:MM
+function formatHours(h) {
+  const hrs = Math.floor(h);
+  const mins = Math.round((h - hrs) * 60);
+  return `${hrs}h ${mins}m`;
+}
 
-fetch('nuts300.gpx')
-  .then(res => res.text())
-  .then(str => (new window.DOMParser()).parseFromString(str, 'text/xml'))
-  .then(gpxDoc => {
-    const geojson = gpx(gpxDoc);
-    const track = L.geoJSON(geojson, { style: { color: 'blue' } }).addTo(map);
-    map.fitBounds(track.getBounds());
-
-    const coords = geojson.features[0].geometry.coordinates;
-    const elevData = coords.map((c, i) => [i, c[2]]);
-    elevationChart.setOption({
-      xAxis: { type: 'value', name: 'Point' },
-      yAxis: { type: 'value', name: 'Elevation (m)' },
-      series: [{ data: elevData, type: 'line', areaStyle: {} }]
-    });
-
-    aidStations.forEach(st => {
-      const nearest = coords.reduce((a, b) => (Math.abs(b[0] - st.lon || 0) + Math.abs(b[1] - st.lat || 0) < Math.abs(a[0] - st.lon || 0) + Math.abs(a[1] - st.lat || 0)) ? b : a);
-      L.marker([nearest[1], nearest[0]]).addTo(map).bindPopup(st.name);
-    });
-  })
-  .catch(err => console.error('Error loading GPX:', err));
-
-recalculatePlan();
+// Recalculate button
+document.getElementById("recalculate").addEventListener("click", buildPacePlan);
