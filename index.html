@@ -2,61 +2,56 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>NUTS 300 Planner</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="favicon.ico" type="image/x-icon" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body { font-family: sans-serif; margin: 0; padding: 0; }
-    #map { height: 400px; }
-    #chart { height: 200px; margin-top: 10px; }
-    #planner { padding: 10px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
-    input[type="number"] { width: 50px; }
-    .footer-row { font-weight: bold; }
+    body { font-family: sans-serif; margin: 0; }
+    #map { height: 300px; }
+    #chart { height: 200px; }
+    .controls { padding: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+    th, td { padding: 6px; border: 1px solid #ccc; text-align: center; }
+    input[type=number] { text-align: center; }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <div id="chart"></div>
 
-  <div id="planner">
-    <h2>NUTS 300 Planner</h2>
-    <label for="goalTime">Goal Finish Time (hours):</label>
-    <input type="number" id="goalTime" value="90" min="70" max="125" step="1"/>
-    <button id="recalculate">Recalculate Plan</button>
+  <div class="controls">
+    <label for="goal-time">Goal Finish Time (hours): </label>
+    <input type="number" id="goal-time" value="90" min="60" max="126" step="1" />
+    <button id="recalc">Recalculate Plan</button>
 
-    <table id="planTable">
+    <h2>NUTS 300 Pacing Plan</h2>
+    <table>
       <thead>
         <tr>
-          <th>From → To</th>
-          <th>Distance (km)</th>
-          <th>Run Time (h)</th>
-          <th>Rest Time (h)</th>
+          <th>Section</th>
+          <th>Distance</th>
+          <th>Time (h)</th>
           <th>Pace (km/h)</th>
-          <th>Arrival</th>
+          <th>Rest (h)</th>
           <th>Cutoff</th>
         </tr>
       </thead>
-      <tbody></tbody>
+      <tbody id="planner-body"></tbody>
       <tfoot>
-        <tr class="footer-row">
-          <td>Total</td>
-          <td id="totalDistance">0</td>
-          <td id="totalRun">0</td>
-          <td id="totalRest">0</td>
-          <td>-</td>
-          <td colspan="2">-</td>
+        <tr>
+          <td colspan="6" id="summary"></td>
         </tr>
       </tfoot>
     </table>
   </div>
 
-  <!-- Scripts -->
+  <!-- External scripts -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
   <script src="togeojson.js"></script>
+
+  <!-- Main app logic -->
   <script type="module" src="main.js?v=latest"></script>
 </body>
 </html>
