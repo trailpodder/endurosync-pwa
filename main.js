@@ -1,128 +1,110 @@
 // main.js
-
-import L from 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet-src.esm.js';
-import "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
-import "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js";
-import "https://cdn.jsdelivr.net/npm/@kurkle/color@0.3.2/dist/color.umd.js";
-
-window.addEventListener("DOMContentLoaded", async () => {
-  const map = L.map("map");
+window.addEventListener("DOMContentLoaded", () => {
+  const map = L.map("map").setView([68.3, 22.5], 8);
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 18,
-    attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
   }).addTo(map);
 
-  const response = await fetch("nuts300.gpx");
-  const gpxText = await response.text();
-  const parser = new DOMParser();
-  const gpxDoc = parser.parseFromString(gpxText, "application/xml");
-  const geojson = toGeoJSON.gpx(gpxDoc);
-  const track = L.geoJSON(geojson, {
-    style: { color: "#e30613", weight: 4 },
-  }).addTo(map);
+  fetch("nuts300.gpx")
+    .then((response) => response.text())
+    .then((gpxText) => {
+      const parser = new DOMParser();
+      const gpxDom = parser.parseFromString(gpxText, "application/xml");
+      const geojson = toGeoJSON.gpx(gpxDom);
 
-  map.fitBounds(track.getBounds());
+      const gpxLine = L.geoJSON(geojson, {
+        style: { color: "blue", weight: 3 },
+      }).addTo(map);
+      map.fitBounds(gpxLine.getBounds());
 
-  const aidStations = [
-    { name: "Start (Njurgulahti)", km: 0, cutoff: 0, latlng: null },
-    { name: "Kalmankaltio", km: 88, cutoff: 24 },
-    { name: "Hetta", km: 192, cutoff: 73 },
-    { name: "Pallas", km: 256, cutoff: 97 },
-    { name: "Finish (Äkäslompolo)", km: 326, cutoff: 126 },
-  ];
+      setupPlanner();
+    })
+    .catch((err) => {
+      console.error("Error loading GPX:", err);
+    });
 
-  const elevations = [];
-  const distances = [];
-  let totalDistance = 0;
-
-  const coords = geojson.features[0].geometry.coordinates.map(c => L.latLng(c[1], c[0]));
-  for (let i = 0; i < coords.length; i++) {
-    if (i > 0) totalDistance += coords[i].distanceTo(coords[i - 1]) / 1000;
-    distances.push(totalDistance);
-    const ele = geojson.features[0].properties.coordTimes ? geojson.features[0].properties.coordTimes[i] : 0;
-    elevations.push(geojson.features[0].geometry.coordinates[i][2] || 0);
-  }
-
-  const aidCoords = aidStations.map(aid => {
-    let nearest = 0;
-    let minDiff = Infinity;
-    for (let i = 0; i < distances.length; i++) {
-      const diff = Math.abs(distances[i] - aid.km);
-      if (diff < minDiff) {
-        minDiff = diff;
-        nearest = i;
-      }
-    }
-    aid.latlng = coords[nearest];
-    return aid;
-  });
-
-  aidCoords.forEach(aid => {
-    if (aid.latlng) {
-      L.marker(aid.latlng, { title: aid.name })
-        .addTo(map)
-        .bindPopup(`<b>${aid.name}</b><br>${aid.km} km`);
-    }
-  });
-
-  const ctx = document.getElementById("elevationChart").getContext("2d");
-  new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: distances.map(d => d.toFixed(1)),
-      datasets: [{
-        label: "Elevation (m)",
-        data: elevations,
-        borderColor: "#e30613",
-        borderWidth: 1,
-        pointRadius: 0,
-        fill: false,
-        tension: 0.1,
-      }],
-    },
-    options: {
-      scales: {
-        x: { title: { display: true, text: "Distance (km)" } },
-        y: { title: { display: true, text: "Elevation (m)" } },
+  function setupPlanner() {
+    const aidStations = [
+      {
+        name: "Start (Njurgulahti)",
+        km: 0,
+        cutoff: new Date("2025-06-30T12:00:00"), // Race start
       },
-    },
-  });
+      {
+        name: "Kalmankaltio",
+        km: 88,
+        cutoff: new Date("2025-07-01T12:00:00"), // 24h
+      },
+      {
+        name: "Hetta",
+        km: 192,
+        cutoff: new Date("2025-07-03T13:00:00"), // 73h
+      },
+      {
+        name: "Pallas",
+        km: 256,
+        cutoff: new Date("2025-07-04T13:00:00"), // 97h
+      },
+      {
+        name: "Finish (Äkäslompolo)",
+        km: 326,
+        cutoff: new Date("2025-07-05T18:00:00"), // 126h
+      },
+    ];
 
-  const plan = [
-    { from: "Start", to: "Kalmankaltio", km: 88, run: 18, rest: 1, cutoff: 24 },
-    { from: "Kalmankaltio", to: "Hetta", km: 104, run: 30, rest: 2, cutoff: 73 },
-    { from: "Hetta", to: "Pallas", km: 64, run: 19, rest: 3, cutoff: 97 },
-    { from: "Pallas", to: "Finish", km: 70, run: 23, rest: 0, cutoff: 126 },
-  ];
+    const rests = [1, 2, 3]; // Default rest hours at Kalmakaltio, Hetta, Pallas
+    const goalTotalHours = 96;
 
-  const table = document.getElementById("pace-plan-body");
-  table.innerHTML = "";
-  let cumulativeTime = 0;
-  let cumulativeDistance = 0;
-  plan.forEach((seg, i) => {
-    cumulativeTime += seg.run + seg.rest;
-    cumulativeDistance += seg.km;
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${seg.from} → ${seg.to}</td>
-      <td>${seg.km}</td>
-      <td>${seg.run.toFixed(2)}</td>
-      <td>${(seg.km / seg.run).toFixed(2)}</td>
-      <td>${seg.rest}</td>
-      <td>${cumulativeTime}</td>
-      <td>${seg.cutoff}</td>
+    const tableBody = document.querySelector("#pace-table tbody");
+    tableBody.innerHTML = "";
+
+    const baseTime = new Date("2025-06-30T12:00:00"); // Race start
+    let currentTime = new Date(baseTime);
+    let lastKm = 0;
+    let totalTime = 0;
+    let totalKm = 0;
+
+    for (let i = 1; i < aidStations.length; i++) {
+      const segmentKm = aidStations[i].km - lastKm;
+      const cutoff = aidStations[i].cutoff;
+      const rest = rests[i - 1] || 0;
+      const latestArrival = new Date(cutoff.getTime() - (rest + 1) * 60 * 60 * 1000); // 1h margin
+      const runTimeHrs = (latestArrival - currentTime) / (1000 * 60 * 60);
+
+      // Avoid negative run time
+      const safeRunTimeHrs = Math.max(runTimeHrs, 1);
+      const pace = segmentKm / safeRunTimeHrs;
+
+      const arrival = new Date(currentTime.getTime() + safeRunTimeHrs * 60 * 60 * 1000);
+      const departure = new Date(arrival.getTime() + rest * 60 * 60 * 1000);
+
+      totalTime += safeRunTimeHrs + rest;
+      totalKm += segmentKm;
+
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${aidStations[i - 1].name} → ${aidStations[i].name}</td>
+        <td>${segmentKm.toFixed(1)} km</td>
+        <td>${safeRunTimeHrs.toFixed(2)} h</td>
+        <td>${pace.toFixed(2)} km/h</td>
+        <td>${rest} h</td>
+        <td>${arrival.toLocaleString("fi-FI", { hour12: false })}</td>
+        <td>${cutoff.toLocaleString("fi-FI", { hour12: false })}</td>
+      `;
+      tableBody.appendChild(row);
+
+      currentTime = departure;
+      lastKm = aidStations[i].km;
+    }
+
+    const summaryRow = document.createElement("tr");
+    summaryRow.innerHTML = `
+      <td><strong>Total</strong></td>
+      <td><strong>${totalKm} km</strong></td>
+      <td><strong>${totalTime.toFixed(2)} h</strong></td>
+      <td colspan="4"></td>
     `;
-    table.appendChild(tr);
-  });
-
-  const summary = document.createElement("tr");
-  summary.innerHTML = `
-    <td><b>Total</b></td>
-    <td><b>${cumulativeDistance}</b></td>
-    <td><b>${cumulativeTime}</b></td>
-    <td><b>${(cumulativeDistance / (cumulativeTime - plan.reduce((a, b) => a + b.rest, 0))).toFixed(2)}</b></td>
-    <td colspan="3"></td>
-  `;
-  table.appendChild(summary);
+    tableBody.appendChild(summaryRow);
+  }
 });
