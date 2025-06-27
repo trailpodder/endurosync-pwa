@@ -1,142 +1,164 @@
 // main.js
-// No import – toGeoJSON is included as a script in index.html
 
-document.addEventListener("DOMContentLoaded", () => {
-  const map = L.map("map").setView([68.5, 21], 9);
+import 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+import 'https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js';
+import 'https://cdn.jsdelivr.net/npm/togeojson@0.16.0/dist/togeojson.umd.js';
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 18,
-    attribution: '&copy; OpenStreetMap contributors',
-  }).addTo(map);
+const aidStations = [
+  { name: "Start (Njurgulahti)", km: 0, cutoff: 0 },
+  { name: "Kalmankaltio", km: 88, cutoff: 24 },
+  { name: "Hetta", km: 192, cutoff: 73 },
+  { name: "Pallas", km: 256, cutoff: 97 },
+  { name: "Rauhala (water only)", km: 277 },
+  { name: "Pahtavuoma (water only)", km: 288 },
+  { name: "Peurakaltio (water only)", km: 301 },
+  { name: "Finish (Äkäslompolo)", km: 326, cutoff: 126 }
+];
 
-  // Aid station data
-  const aidStations = [
-    { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00", rest: 0 },
-    { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00", rest: 1 },
-    { name: "Hetta", km: 192, cutoff: "Thu 13:00", rest: 2 },
-    { name: "Pallas", km: 256, cutoff: "Fri 13:00", rest: 3 },
-    { name: "Rauhala (water)", km: 277, cutoff: "", rest: 0 },
-    { name: "Pahtavuoma (water)", km: 288, cutoff: "", rest: 0 },
-    { name: "Peurakaltio (water)", km: 301, cutoff: "", rest: 0 },
-    { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00", rest: 0 },
-  ];
+const restTimeDefaults = [0, 1, 2, 3, 0, 0, 0, 0]; // Default rest times per station in hours
 
-  const icon = L.icon({
-    iconUrl: 'favicon.ico',
-    iconSize: [20, 20],
-    iconAnchor: [10, 10],
-  });
+const restInputs = {};
 
+function loadGPX() {
   fetch("nuts300.gpx")
     .then((res) => res.text())
     .then((gpxText) => {
       const parser = new DOMParser();
-      const xml = parser.parseFromString(gpxText, "application/xml");
-      const geojson = toGeoJSON.gpx(xml);
+      const gpx = parser.parseFromString(gpxText, "application/xml");
+      const geojson = toGeoJSON.gpx(gpx);
+      const coords = geojson.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
 
-      const route = L.geoJSON(geojson, {
-        style: { color: "blue", weight: 3 },
-      }).addTo(map);
+      const map = L.map('map').setView(coords[0], 10);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-      map.fitBounds(route.getBounds());
+      const line = L.polyline(coords, { color: 'blue' }).addTo(map);
+      map.fitBounds(line.getBounds());
 
-      const routeLine = geojson.features.find(f => f.geometry.type === "LineString");
-      const coords = routeLine.geometry.coordinates;
-
-      // Elevation chart
-      const elevation = coords.map((c, i) => ({
-        dist: i * 0.05, // estimate 50 m per point
-        ele: c[2] || 0,
-      }));
-
-      const chart = echarts.init(document.getElementById("chart"));
-      chart.setOption({
-        tooltip: {},
-        xAxis: { type: "value", name: "km" },
-        yAxis: { type: "value", name: "m" },
-        series: [{
-          type: "line",
-          data: elevation.map(p => [p.dist, p.ele]),
-          smooth: true
-        }]
+      aidStations.forEach((station, i) => {
+        const index = Math.floor((station.km / 326) * (coords.length - 1));
+        const coord = coords[index];
+        L.marker(coord, {
+          icon: L.icon({
+            iconUrl: 'favicon.ico',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+          })
+        }).addTo(map).bindPopup(`${station.name} (${station.km} km)`);
       });
 
-      // Place aid station markers at nearest coordinate
-      aidStations.forEach(station => {
-        let closest = coords.reduce((prev, curr) =>
-          Math.abs(curr[2] - station.km) < Math.abs(prev[2] - station.km) ? curr : prev
-        );
-        L.marker([closest[1], closest[0]], { icon }).addTo(map)
-          .bindPopup(`${station.name}<br>${station.km} km<br>Cutoff: ${station.cutoff}`);
-      });
-
-      buildPlanner(aidStations);
+      drawChart(geojson);
     })
     .catch((err) => console.error("Error loading GPX:", err));
-});
-
-// Build pacing planner
-function buildPlanner(aidStations) {
-  const table = document.getElementById("planner-body");
-  const totalTimeInput = document.getElementById("goal-time");
-  const recalcBtn = document.getElementById("recalc");
-
-  function recalculate() {
-    table.innerHTML = "";
-    const totalTime = parseFloat(totalTimeInput.value);
-    const restTimes = aidStations.map((_, i) =>
-      parseFloat(document.getElementById(`rest-${i}`)?.value || 0)
-    );
-
-    // Section calculations
-    let totalDist = 0;
-    let totalHours = 0;
-
-    for (let i = 1; i < aidStations.length; i++) {
-      const from = aidStations[i - 1];
-      const to = aidStations[i];
-      const sectionDist = to.km - from.km;
-
-      // Determine max allowed time for this section
-      let maxSectionTime;
-      if (to.cutoff) {
-        const cutoffHours = cutoffToHours(to.cutoff);
-        maxSectionTime = cutoffHours - totalHours - restTimes[i - 1] - 1;
-      } else {
-        maxSectionTime = (totalTime - totalHours - restTimes[i - 1]) * (sectionDist / (aidStations[aidStations.length - 1].km - from.km));
-      }
-
-      const pace = sectionDist / maxSectionTime;
-      const sectionTime = sectionDist / pace;
-
-      totalDist += sectionDist;
-      totalHours += sectionTime + restTimes[i - 1];
-
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${from.name} → ${to.name}</td>
-        <td>${sectionDist.toFixed(1)} km</td>
-        <td>${sectionTime.toFixed(2)} h</td>
-        <td>${pace.toFixed(2)} km/h</td>
-        <td><input type="number" id="rest-${i}" value="${restTimes[i] || 0}" min="0" step="0.5" style="width:50px"></td>
-        <td>${to.cutoff || "-"}</td>
-      `;
-      table.appendChild(row);
-    }
-
-    const summary = document.getElementById("summary");
-    summary.innerHTML = `<strong>Total: ${totalDist.toFixed(1)} km, ${totalHours.toFixed(2)} h</strong>`;
-  }
-
-  recalcBtn.addEventListener("click", recalculate);
-  recalculate();
 }
 
-// Converts cutoff like "Tue 12:00" to hours from Mon 12:00
-function cutoffToHours(label) {
-  const days = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5 };
-  const [dayStr, timeStr] = label.split(" ");
-  const day = days[dayStr];
-  const [h, m] = timeStr.split(":").map(Number);
-  return day * 24 + h + m / 60;
+function drawChart(geojson) {
+  const chart = echarts.init(document.getElementById('chart'));
+  const distances = [];
+  const elevations = [];
+  let totalDist = 0;
+
+  const coords = geojson.features[0].geometry.coordinates;
+  for (let i = 1; i < coords.length; i++) {
+    const [lon1, lat1, ele1] = coords[i - 1];
+    const [lon2, lat2, ele2] = coords[i];
+    const d = getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2);
+    totalDist += d;
+    distances.push(totalDist);
+    elevations.push(ele2);
+  }
+
+  chart.setOption({
+    tooltip: { trigger: 'axis' },
+    xAxis: { type: 'category', data: distances.map(d => d.toFixed(1)), name: 'Distance (km)' },
+    yAxis: { type: 'value', name: 'Elevation (m)' },
+    series: [{ data: elevations, type: 'line', areaStyle: {} }]
+  });
+}
+
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) *
+            Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function buildPlanner() {
+  const planner = document.getElementById('planner');
+  planner.innerHTML = '';
+
+  const goalTime = parseFloat(document.getElementById('goalTime').value);
+
+  const table = document.createElement('table');
+  const header = table.insertRow();
+  ['From → To', 'Distance (km)', 'Run Time (h)', 'Pace (km/h)', 'Rest (h)', 'Cutoff'].forEach(text => {
+    const th = document.createElement('th');
+    th.textContent = text;
+    header.appendChild(th);
+  });
+
+  let totalTime = 0;
+  let totalDistance = 0;
+
+  for (let i = 1; i < aidStations.length; i++) {
+    const row = table.insertRow();
+    const from = aidStations[i - 1];
+    const to = aidStations[i];
+    const dist = to.km - from.km;
+
+    const rest = parseFloat(restInputs[to.name]?.value || restTimeDefaults[i] || 0);
+    const cutoffH = to.cutoff;
+    let runTime;
+
+    if (cutoffH) {
+      runTime = cutoffH - totalTime - rest - 1; // 1h margin
+      if (runTime < 0) runTime = 0;
+    } else {
+      const remainingTime = goalTime - totalTime - rest;
+      const remainingDist = aidStations[aidStations.length - 1].km - to.km;
+      runTime = (dist / (remainingDist || 1)) * remainingTime;
+    }
+
+    const pace = dist / (runTime || 1);
+
+    row.insertCell().textContent = `${from.name} → ${to.name}`;
+    row.insertCell().textContent = dist.toFixed(1);
+    row.insertCell().textContent = runTime.toFixed(2);
+    row.insertCell().textContent = pace.toFixed(2);
+
+    const restInput = document.createElement('input');
+    restInput.type = 'number';
+    restInput.value = rest;
+    restInput.min = 0;
+    restInput.style.width = '3em';
+    restInput.addEventListener('change', buildPlanner);
+    restInputs[to.name] = restInput;
+    row.insertCell().appendChild(restInput);
+
+    row.insertCell().textContent = cutoffH ? `T+${cutoffH}h` : '-';
+
+    totalTime += runTime + rest;
+    totalDistance += dist;
+  }
+
+  const sumRow = table.insertRow();
+  sumRow.insertCell().textContent = 'Total';
+  sumRow.insertCell().textContent = totalDistance.toFixed(1);
+  sumRow.insertCell().textContent = totalTime.toFixed(2);
+  sumRow.insertCell().textContent = (totalDistance / totalTime).toFixed(2);
+  sumRow.insertCell().textContent = '';
+  sumRow.insertCell().textContent = '';
+
+  planner.appendChild(table);
+}
+
+document.getElementById('recalculate').addEventListener('click', buildPlanner);
+loadGPX();
+buildPlanner();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(() => {
+    console.log('✅ Service Worker registered');
+  });
 }
