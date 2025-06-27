@@ -1,110 +1,103 @@
-// main.js
-window.addEventListener("DOMContentLoaded", () => {
-  const map = L.map("map").setView([68.3, 22.5], 8);
+import * as toGeoJSON from 'https://unpkg.com/@tmcw/togeojson@0.16.0/dist/togeojson.umd.js';
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 18,
-  }).addTo(map);
+const aidStations = [
+  { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00" },
+  { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00", cutoffHour: 24 },
+  { name: "Hetta", km: 192, cutoff: "Thu 13:00", cutoffHour: 73 },
+  { name: "Pallas", km: 256, cutoff: "Fri 13:00", cutoffHour: 97 },
+  { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00", cutoffHour: 126 }
+];
 
-  fetch("nuts300.gpx")
-    .then((response) => response.text())
-    .then((gpxText) => {
-      const parser = new DOMParser();
-      const gpxDom = parser.parseFromString(gpxText, "application/xml");
-      const geojson = toGeoJSON.gpx(gpxDom);
+// Default rest times per station
+let restTimes = [0, 1, 2, 3, 0]; // No rest at Start and Finish
 
-      const gpxLine = L.geoJSON(geojson, {
-        style: { color: "blue", weight: 3 },
-      }).addTo(map);
-      map.fitBounds(gpxLine.getBounds());
+const goalTimeInput = document.getElementById("goal-time");
+const tableBody = document.querySelector("#pace-table tbody");
+const totalRunTimeCell = document.getElementById("total-run-time");
+const totalRestTimeCell = document.getElementById("total-rest-time");
+const totalDistanceCell = document.getElementById("total-distance");
 
-      setupPlanner();
-    })
-    .catch((err) => {
-      console.error("Error loading GPX:", err);
+function calculatePacing(goalTimeHours) {
+  tableBody.innerHTML = "";
+
+  let totalRunTime = 0;
+  let totalRestTime = 0;
+  let totalDistance = 0;
+
+  let segments = [];
+
+  for (let i = 1; i < aidStations.length; i++) {
+    const from = aidStations[i - 1];
+    const to = aidStations[i];
+
+    const distance = to.km - from.km;
+    const cutoff = to.cutoffHour;
+
+    const rest = restTimes[i] || 0;
+
+    // Run time must be less than cutoff - all previous run/rest + rest + 1h
+    const maxArrival = cutoff - 1 - rest - totalRunTime - totalRestTime;
+    const runTime = Math.max(1, Math.min(maxArrival, distance / 2)); // prevent negative or zero
+
+    totalRunTime += runTime;
+    totalRestTime += rest;
+    totalDistance += distance;
+
+    const pace = (distance / runTime).toFixed(2);
+    const arrivalTime = `+${(totalRunTime + totalRestTime).toFixed(2)}h`;
+
+    segments.push({
+      segment: `${from.name} → ${to.name}`,
+      distance,
+      runTime: runTime.toFixed(2),
+      pace,
+      rest,
+      arrivalTime,
+      cutoff: to.cutoff
     });
-
-  function setupPlanner() {
-    const aidStations = [
-      {
-        name: "Start (Njurgulahti)",
-        km: 0,
-        cutoff: new Date("2025-06-30T12:00:00"), // Race start
-      },
-      {
-        name: "Kalmankaltio",
-        km: 88,
-        cutoff: new Date("2025-07-01T12:00:00"), // 24h
-      },
-      {
-        name: "Hetta",
-        km: 192,
-        cutoff: new Date("2025-07-03T13:00:00"), // 73h
-      },
-      {
-        name: "Pallas",
-        km: 256,
-        cutoff: new Date("2025-07-04T13:00:00"), // 97h
-      },
-      {
-        name: "Finish (Äkäslompolo)",
-        km: 326,
-        cutoff: new Date("2025-07-05T18:00:00"), // 126h
-      },
-    ];
-
-    const rests = [1, 2, 3]; // Default rest hours at Kalmakaltio, Hetta, Pallas
-    const goalTotalHours = 96;
-
-    const tableBody = document.querySelector("#pace-table tbody");
-    tableBody.innerHTML = "";
-
-    const baseTime = new Date("2025-06-30T12:00:00"); // Race start
-    let currentTime = new Date(baseTime);
-    let lastKm = 0;
-    let totalTime = 0;
-    let totalKm = 0;
-
-    for (let i = 1; i < aidStations.length; i++) {
-      const segmentKm = aidStations[i].km - lastKm;
-      const cutoff = aidStations[i].cutoff;
-      const rest = rests[i - 1] || 0;
-      const latestArrival = new Date(cutoff.getTime() - (rest + 1) * 60 * 60 * 1000); // 1h margin
-      const runTimeHrs = (latestArrival - currentTime) / (1000 * 60 * 60);
-
-      // Avoid negative run time
-      const safeRunTimeHrs = Math.max(runTimeHrs, 1);
-      const pace = segmentKm / safeRunTimeHrs;
-
-      const arrival = new Date(currentTime.getTime() + safeRunTimeHrs * 60 * 60 * 1000);
-      const departure = new Date(arrival.getTime() + rest * 60 * 60 * 1000);
-
-      totalTime += safeRunTimeHrs + rest;
-      totalKm += segmentKm;
-
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${aidStations[i - 1].name} → ${aidStations[i].name}</td>
-        <td>${segmentKm.toFixed(1)} km</td>
-        <td>${safeRunTimeHrs.toFixed(2)} h</td>
-        <td>${pace.toFixed(2)} km/h</td>
-        <td>${rest} h</td>
-        <td>${arrival.toLocaleString("fi-FI", { hour12: false })}</td>
-        <td>${cutoff.toLocaleString("fi-FI", { hour12: false })}</td>
-      `;
-      tableBody.appendChild(row);
-
-      currentTime = departure;
-      lastKm = aidStations[i].km;
-    }
-
-    const summaryRow = document.createElement("tr");
-    summaryRow.innerHTML = `
-      <td><strong>Total</strong></td>
-      <td><strong>${totalKm} km</strong></td>
-      <td><strong>${totalTime.toFixed(2)} h</strong></td>
-      <td colspan="4"></td>
-    `;
-    tableBody.appendChild(summaryRow);
   }
+
+  // Render table
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${seg.segment}</td>
+      <td>${seg.distance}</td>
+      <td>${seg.runTime}</td>
+      <td>${seg.pace}</td>
+      <td><input type="number" class="input-small rest-input" data-index="${i + 1}" value="${seg.rest}" min="0" max="5"/></td>
+      <td>${seg.arrivalTime}</td>
+      <td>${seg.cutoff}</td>
+    `;
+
+    tableBody.appendChild(row);
+  }
+
+  totalRunTimeCell.textContent = totalRunTime.toFixed(2);
+  totalRestTimeCell.textContent = totalRestTime.toFixed(2);
+  totalDistanceCell.textContent = totalDistance.toFixed(1);
+
+  addRestInputListeners();
+}
+
+function addRestInputListeners() {
+  const inputs = document.querySelectorAll(".rest-input");
+  inputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      const index = parseInt(input.dataset.index);
+      const value = parseFloat(input.value);
+      restTimes[index] = isNaN(value) ? 0 : value;
+      calculatePacing(parseFloat(goalTimeInput.value));
+    });
+  });
+}
+
+// Recalculate button
+document.getElementById("recalculate-btn").addEventListener("click", () => {
+  calculatePacing(parseFloat(goalTimeInput.value));
 });
+
+// Initial run
+calculatePacing(parseFloat(goalTimeInput.value));
