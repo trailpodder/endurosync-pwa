@@ -1,103 +1,105 @@
-import * as toGeoJSON from 'https://unpkg.com/@tmcw/togeojson@0.16.0/dist/togeojson.umd.js';
+import * as toGeoJSON from './togeojson.umd.js';
+
+import L from "https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js";
+import Chart from "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js";
 
 const aidStations = [
   { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00" },
-  { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00", cutoffHour: 24 },
-  { name: "Hetta", km: 192, cutoff: "Thu 13:00", cutoffHour: 73 },
-  { name: "Pallas", km: 256, cutoff: "Fri 13:00", cutoffHour: 97 },
-  { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00", cutoffHour: 126 }
+  { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00" },
+  { name: "Hetta", km: 192, cutoff: "Thu 13:00" },
+  { name: "Pallas", km: 256, cutoff: "Fri 13:00" },
+  { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00" }
 ];
 
-// Default rest times per station
-let restTimes = [0, 1, 2, 3, 0]; // No rest at Start and Finish
+const defaultRest = [0, 1, 2, 3]; // hrs at each aid station (excluding start)
 
-const goalTimeInput = document.getElementById("goal-time");
-const tableBody = document.querySelector("#pace-table tbody");
-const totalRunTimeCell = document.getElementById("total-run-time");
-const totalRestTimeCell = document.getElementById("total-rest-time");
-const totalDistanceCell = document.getElementById("total-distance");
+let chart, map;
 
-function calculatePacing(goalTimeHours) {
-  tableBody.innerHTML = "";
+async function setupPlanner() {
+  const goalTime = parseFloat(document.getElementById("goalTime").value);
 
-  let totalRunTime = 0;
-  let totalRestTime = 0;
-  let totalDistance = 0;
-
-  let segments = [];
-
+  const segments = [];
   for (let i = 1; i < aidStations.length; i++) {
-    const from = aidStations[i - 1];
-    const to = aidStations[i];
+    const prev = aidStations[i - 1];
+    const curr = aidStations[i];
+    const dist = curr.km - prev.km;
+    const rest = defaultRest[i - 1];
 
-    const distance = to.km - from.km;
-    const cutoff = to.cutoffHour;
-
-    const rest = restTimes[i] || 0;
-
-    // Run time must be less than cutoff - all previous run/rest + rest + 1h
-    const maxArrival = cutoff - 1 - rest - totalRunTime - totalRestTime;
-    const runTime = Math.max(1, Math.min(maxArrival, distance / 2)); // prevent negative or zero
-
-    totalRunTime += runTime;
-    totalRestTime += rest;
-    totalDistance += distance;
-
-    const pace = (distance / runTime).toFixed(2);
-    const arrivalTime = `+${(totalRunTime + totalRestTime).toFixed(2)}h`;
-
+    // Define cutoffs in hours since start
+    const cutoffHours = [0, 24, 73, 97, 126][i];
+    const maxRun = cutoffHours - 1 - rest;
     segments.push({
-      segment: `${from.name} → ${to.name}`,
-      distance,
-      runTime: runTime.toFixed(2),
-      pace,
-      rest,
-      arrivalTime,
-      cutoff: to.cutoff
+      segment: `${prev.name} → ${curr.name}`,
+      distance: dist,
+      runTime: maxRun,
+      rest: rest,
+      pace: (dist / maxRun).toFixed(2),
+      arrival: cutoffHours - 1 - rest,
+      cutoff: aidStations[i].cutoff
     });
   }
 
-  // Render table
-  for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
+  // Populate table
+  const tbody = document.getElementById("planTableBody");
+  tbody.innerHTML = "";
+  let totalRun = 0, totalRest = 0, totalDist = 0;
+  segments.forEach(seg => {
+    totalRun += seg.runTime;
+    totalRest += seg.rest;
+    totalDist += seg.distance;
     const row = document.createElement("tr");
-
     row.innerHTML = `
       <td>${seg.segment}</td>
-      <td>${seg.distance}</td>
-      <td>${seg.runTime}</td>
+      <td>${seg.distance.toFixed(1)}</td>
+      <td>${seg.runTime.toFixed(2)}</td>
+      <td><input class="rest-time" value="${seg.rest}" /></td>
       <td>${seg.pace}</td>
-      <td><input type="number" class="input-small rest-input" data-index="${i + 1}" value="${seg.rest}" min="0" max="5"/></td>
-      <td>${seg.arrivalTime}</td>
+      <td>~${seg.arrival.toFixed(1)}h</td>
       <td>${seg.cutoff}</td>
     `;
+    tbody.appendChild(row);
+  });
+  document.getElementById("totalDistance").innerText = totalDist.toFixed(1);
+  document.getElementById("totalRunTime").innerText = totalRun.toFixed(2);
+  document.getElementById("totalRestTime").innerText = totalRest.toFixed(2);
 
-    tableBody.appendChild(row);
+  // Load GPX and draw map/chart
+  if (!map) {
+    map = L.map('map').setView([68.3, 23.6], 8);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
   }
 
-  totalRunTimeCell.textContent = totalRunTime.toFixed(2);
-  totalRestTimeCell.textContent = totalRestTime.toFixed(2);
-  totalDistanceCell.textContent = totalDistance.toFixed(1);
+  const res = await fetch("route.gpx");
+  const gpxText = await res.text();
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(gpxText, "application/xml");
+  const geojson = toGeoJSON.gpx(xml);
 
-  addRestInputListeners();
-}
+  const line = L.geoJSON(geojson, { style: { color: "blue" } }).addTo(map);
+  map.fitBounds(line.getBounds());
 
-function addRestInputListeners() {
-  const inputs = document.querySelectorAll(".rest-input");
-  inputs.forEach((input) => {
-    input.addEventListener("change", () => {
-      const index = parseInt(input.dataset.index);
-      const value = parseFloat(input.value);
-      restTimes[index] = isNaN(value) ? 0 : value;
-      calculatePacing(parseFloat(goalTimeInput.value));
-    });
+  aidStations.forEach(pt => {
+    L.marker([0, 0], { title: pt.name }).addTo(map); // Replace [0,0] with actual coords if available
+  });
+
+  const elevations = geojson.features[0].geometry.coordinates.map((c, i) => ({
+    x: i, y: c[2]
+  }));
+
+  if (chart) chart.destroy();
+  const ctx = document.getElementById('chart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: elevations.map(e => e.x),
+      datasets: [{
+        label: "Elevation (m)",
+        data: elevations,
+        fill: false,
+        borderColor: "green"
+      }]
+    }
   });
 }
 
-// Recalculate button
-document.getElementById("recalculate-btn").addEventListener("click", () => {
-  calculatePacing(parseFloat(goalTimeInput.value));
-});
-
-// Initial run
-calculatePacing(parseFloat(goalTimeInput.value));
+setupPlanner();
