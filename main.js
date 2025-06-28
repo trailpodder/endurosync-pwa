@@ -1,105 +1,111 @@
-import * as toGeoJSON from './togeojson.umd.js';
-
-import L from "https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js";
-import Chart from "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js";
+import Chart from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.esm.min.js';
+import { gpx } from './togeojson.umd.js';
 
 const aidStations = [
-  { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00" },
-  { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00" },
-  { name: "Hetta", km: 192, cutoff: "Thu 13:00" },
-  { name: "Pallas", km: 256, cutoff: "Fri 13:00" },
-  { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00" }
+  { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00", timeLimit: 0 },
+  { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00", timeLimit: 24 },
+  { name: "Hetta", km: 192, cutoff: "Thu 13:00", timeLimit: 73 },
+  { name: "Pallas", km: 256, cutoff: "Fri 13:00", timeLimit: 97 },
+  { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00", timeLimit: 126 }
 ];
 
-const defaultRest = [0, 1, 2, 3]; // hrs at each aid station (excluding start)
+// Default realistic plan for 96-hour goal
+const plan = [
+  { segment: "Start → Kalmankaltio", distance: 88, runTime: 18, rest: 1 },
+  { segment: "Kalmankaltio → Hetta", distance: 104, runTime: 30, rest: 2 },
+  { segment: "Hetta → Pallas", distance: 64, runTime: 19, rest: 3 },
+  { segment: "Pallas → Finish", distance: 70, runTime: 23, rest: 0 }
+];
 
-let chart, map;
+function renderPlanner() {
+  const table = document.getElementById("pacing-table");
+  let html = `
+    <thead>
+      <tr>
+        <th>Segment</th>
+        <th>Distance (km)</th>
+        <th>Run Time (h)</th>
+        <th>Rest (h)</th>
+        <th>Pace (km/h)</th>
+        <th>Arrival Time</th>
+        <th>Cumulative Time</th>
+        <th>Cutoff</th>
+      </tr>
+    </thead>
+    <tbody>
+  `;
 
-async function setupPlanner() {
-  const goalTime = parseFloat(document.getElementById("goalTime").value);
+  let cumulativeTime = 0;
+  let departureTime = new Date("2025-07-14T12:00:00"); // Start: Mon 12:00
+  for (let i = 0; i < plan.length; i++) {
+    const p = plan[i];
+    const totalSegmentTime = p.runTime + p.rest;
+    cumulativeTime += totalSegmentTime;
 
-  const segments = [];
-  for (let i = 1; i < aidStations.length; i++) {
-    const prev = aidStations[i - 1];
-    const curr = aidStations[i];
-    const dist = curr.km - prev.km;
-    const rest = defaultRest[i - 1];
+    departureTime.setHours(departureTime.getHours() + p.runTime);
+    const arrival = new Date(departureTime);
 
-    // Define cutoffs in hours since start
-    const cutoffHours = [0, 24, 73, 97, 126][i];
-    const maxRun = cutoffHours - 1 - rest;
-    segments.push({
-      segment: `${prev.name} → ${curr.name}`,
-      distance: dist,
-      runTime: maxRun,
-      rest: rest,
-      pace: (dist / maxRun).toFixed(2),
-      arrival: cutoffHours - 1 - rest,
-      cutoff: aidStations[i].cutoff
-    });
-  }
+    const pace = (p.distance / p.runTime).toFixed(2);
+    const arrivalStr = arrival.toUTCString().slice(0, 22);
 
-  // Populate table
-  const tbody = document.getElementById("planTableBody");
-  tbody.innerHTML = "";
-  let totalRun = 0, totalRest = 0, totalDist = 0;
-  segments.forEach(seg => {
-    totalRun += seg.runTime;
-    totalRest += seg.rest;
-    totalDist += seg.distance;
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${seg.segment}</td>
-      <td>${seg.distance.toFixed(1)}</td>
-      <td>${seg.runTime.toFixed(2)}</td>
-      <td><input class="rest-time" value="${seg.rest}" /></td>
-      <td>${seg.pace}</td>
-      <td>~${seg.arrival.toFixed(1)}h</td>
-      <td>${seg.cutoff}</td>
+    const cutoff = aidStations[i + 1]?.cutoff || "-";
+
+    html += `
+      <tr>
+        <td>${p.segment}</td>
+        <td>${p.distance}</td>
+        <td>${p.runTime}</td>
+        <td>${p.rest}</td>
+        <td>${pace}</td>
+        <td>${arrivalStr}</td>
+        <td>${cumulativeTime} h</td>
+        <td>${cutoff}</td>
+      </tr>
     `;
-    tbody.appendChild(row);
-  });
-  document.getElementById("totalDistance").innerText = totalDist.toFixed(1);
-  document.getElementById("totalRunTime").innerText = totalRun.toFixed(2);
-  document.getElementById("totalRestTime").innerText = totalRest.toFixed(2);
 
-  // Load GPX and draw map/chart
-  if (!map) {
-    map = L.map('map').setView([68.3, 23.6], 8);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    departureTime.setHours(departureTime.getHours() + p.rest); // add rest
   }
 
-  const res = await fetch("route.gpx");
-  const gpxText = await res.text();
-  const parser = new DOMParser();
-  const xml = parser.parseFromString(gpxText, "application/xml");
-  const geojson = toGeoJSON.gpx(xml);
+  const totalDistance = plan.reduce((a, b) => a + b.distance, 0);
+  html += `
+    <tr>
+      <th>Total</th>
+      <th>${totalDistance}</th>
+      <th colspan="2">–</th>
+      <th colspan="2">Goal: 96 h</th>
+      <th>${cumulativeTime} h</th>
+      <th>Cutoff: 126 h</th>
+    </tr>
+  `;
 
-  const line = L.geoJSON(geojson, { style: { color: "blue" } }).addTo(map);
-  map.fitBounds(line.getBounds());
+  html += `</tbody>`;
+  table.innerHTML = html;
+}
 
-  aidStations.forEach(pt => {
-    L.marker([0, 0], { title: pt.name }).addTo(map); // Replace [0,0] with actual coords if available
-  });
-
-  const elevations = geojson.features[0].geometry.coordinates.map((c, i) => ({
-    x: i, y: c[2]
-  }));
-
-  if (chart) chart.destroy();
-  const ctx = document.getElementById('chart').getContext('2d');
-  chart = new Chart(ctx, {
+// Basic placeholder chart
+function renderChart() {
+  const ctx = document.getElementById("chart").getContext("2d");
+  new Chart(ctx, {
     type: "line",
     data: {
-      labels: elevations.map(e => e.x),
+      labels: plan.map(p => p.segment),
       datasets: [{
-        label: "Elevation (m)",
-        data: elevations,
+        label: "Run Time per Segment (h)",
+        data: plan.map(p => p.runTime),
         fill: false,
-        borderColor: "green"
+        borderColor: "blue"
       }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: "top" } },
+      scales: {
+        y: { beginAtZero: true },
+        x: { ticks: { autoSkip: false } }
+      }
     }
   });
 }
 
-setupPlanner();
+renderPlanner();
+renderChart();
