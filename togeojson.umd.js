@@ -1,130 +1,75 @@
-/*!
- * toGeoJSON, v0.16.0
- * https://github.com/mapbox/togeojson
- * Licensed under ISC
- */
+(function (global, factory) {
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
+  typeof define === 'function' && define.amd ? define(['exports'], factory) :
+  (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.toGeoJSON = {}));
+})(this, (function (exports) {
+  'use strict';
 
-(function (root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define(factory);
-    } else if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.toGeoJSON = factory();
-    }
-}(this, function () {
-    'use strict';
-
-    function get(x, key) {
-        return x.getElementsByTagName(key);
-    }
-
-    function attr(x, key) {
-        return x.getAttribute(key);
-    }
-
-    function nodeVal(x) {
-        if (!x) return '';
-        return x.textContent || x.innerText || '';
-    }
-
-    function get1(x, key) {
-        var found = get(x, key);
-        if (found.length) return found[0];
-        return null;
-    }
-
-    function coord1(v) {
-        return parseFloat(v);
-    }
-
-    function coordPair(x) {
-        return [coord1(nodeVal(get1(x, 'longitude'))),
-                coord1(nodeVal(get1(x, 'latitude')))];
-    }
-
-    function getTime(x) {
-        var when = get1(x, 'Time');
-        if (when) return nodeVal(when);
-    }
-
-    function getCoordsLine(line) {
-        var coords = [];
-        var coordsEl = get(line, 'coord');
-        for (var i = 0; i < coordsEl.length; i++) {
-            var el = coordsEl[i];
-            var lon = coord1(get1(el, 'longitude'));
-            var lat = coord1(get1(el, 'latitude'));
-            coords.push([lon, lat]);
+  function getTracks(doc) {
+    const tracks = [];
+    const trks = doc.getElementsByTagName('trk');
+    for (let i = 0; i < trks.length; i++) {
+      const trksegs = trks[i].getElementsByTagName('trkseg');
+      const coords = [];
+      for (let j = 0; j < trksegs.length; j++) {
+        const trkpts = trksegs[j].getElementsByTagName('trkpt');
+        for (let k = 0; k < trkpts.length; k++) {
+          const pt = trkpts[k];
+          const lat = parseFloat(pt.getAttribute('lat'));
+          const lon = parseFloat(pt.getAttribute('lon'));
+          const ele = pt.getElementsByTagName('ele')[0];
+          const elevation = ele ? parseFloat(ele.textContent) : undefined;
+          coords.push([lon, lat, elevation]);
         }
-        return coords;
+      }
+      tracks.push({
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: coords
+        },
+        properties: {}
+      });
     }
+    return tracks;
+  }
 
-    function parseGpx(xml) {
-        var g = {
-            type: 'FeatureCollection',
-            features: []
-        };
-
-        var tracks = get(xml, 'trk');
-        for (var i = 0; i < tracks.length; i++) {
-            var track = tracks[i];
-            var name = nodeVal(get1(track, 'name'));
-            var segments = get(track, 'trkseg');
-            var coords = [];
-
-            for (var j = 0; j < segments.length; j++) {
-                var segpts = get(segments[j], 'trkpt');
-                var segment = [];
-
-                for (var k = 0; k < segpts.length; k++) {
-                    var pt = segpts[k];
-                    var lon = parseFloat(pt.getAttribute('lon'));
-                    var lat = parseFloat(pt.getAttribute('lat'));
-                    var ele = get1(pt, 'ele');
-                    var elevation = ele ? parseFloat(nodeVal(ele)) : undefined;
-                    var time = getTime(pt);
-
-                    var coord = [lon, lat];
-                    if (typeof elevation !== 'undefined') coord.push(elevation);
-
-                    segment.push(coord);
-                }
-
-                coords.push(segment);
-            }
-
-            g.features.push({
-                type: 'Feature',
-                properties: { name: name },
-                geometry: {
-                    type: 'MultiLineString',
-                    coordinates: coords
-                }
-            });
-        }
-
-        var waypoints = get(xml, 'wpt');
-        for (var i = 0; i < waypoints.length; i++) {
-            var wpt = waypoints[i];
-            var lon = parseFloat(wpt.getAttribute('lon'));
-            var lat = parseFloat(wpt.getAttribute('lat'));
-            var name = nodeVal(get1(wpt, 'name'));
-
-            g.features.push({
-                type: 'Feature',
-                properties: { name: name },
-                geometry: {
-                    type: 'Point',
-                    coordinates: [lon, lat]
-                }
-            });
-        }
-
-        return g;
+  function getWaypoints(doc) {
+    const wpts = doc.getElementsByTagName('wpt');
+    const features = [];
+    for (let i = 0; i < wpts.length; i++) {
+      const wpt = wpts[i];
+      const lat = parseFloat(wpt.getAttribute('lat'));
+      const lon = parseFloat(wpt.getAttribute('lon'));
+      const ele = wpt.getElementsByTagName('ele')[0];
+      const elevation = ele ? parseFloat(ele.textContent) : undefined;
+      const name = wpt.getElementsByTagName('name')[0];
+      const properties = {};
+      if (name) properties.name = name.textContent;
+      features.push({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [lon, lat, elevation]
+        },
+        properties
+      });
     }
+    return features;
+  }
 
+  function gpx(doc) {
+    const features = [];
+    features.push(...getTracks(doc));
+    features.push(...getWaypoints(doc));
     return {
-        gpx: parseGpx
+      type: 'FeatureCollection',
+      features
     };
+  }
+
+  exports.gpx = gpx;
+
+  Object.defineProperty(exports, '__esModule', { value: true });
+
 }));
