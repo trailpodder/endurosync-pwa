@@ -1,4 +1,5 @@
- const aidStations = [
+// Aid stations with cutoff info
+const aidStations = [
   { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00" },
   { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00", rest: 1 },
   { name: "Hetta", km: 192, cutoff: "Thu 13:00", rest: 2 },
@@ -6,138 +7,58 @@
   { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00" }
 ];
 
-// Static pace plan based on user input
-const pacePlan = [
-  { from: 0, to: 88, runtime: 18, rest: 1 },
-  { from: 88, to: 192, runtime: 30, rest: 2 },
-  { from: 192, to: 256, runtime: 19, rest: 3 },
-  { from: 256, to: 326, runtime: 23, rest: 0 }
+// Static pacing plan for 96h total
+const plan = [
+  { segment: "Start – Kalmankaltio", dist: 88, run: 18, rest: 1, arrival: "Tue 06:00", cutoff: "Tue 12:00" },
+  { segment: "Kalmankaltio – Hetta", dist: 104, run: 30, rest: 2, arrival: "Wed 13:00", cutoff: "Thu 13:00" },
+  { segment: "Hetta – Pallas", dist: 64, run: 19, rest: 3, arrival: "Thu 10:00", cutoff: "Fri 13:00" },
+  { segment: "Pallas – Finish", dist: 70, run: 23, rest: 0, arrival: "Fri 12:00", cutoff: "Sat 18:00" }
 ];
 
-async function loadGPX(url) {
-  const res = await fetch(url);
-  const gpxText = await res.text();
+// Load GPX and convert to GeoJSON
+async function loadGPX() {
+  const response = await fetch('nuts300.gpx');
+  const gpxText = await response.text();
   const parser = new DOMParser();
   const gpxDoc = parser.parseFromString(gpxText, "application/xml");
-  return toGeoJSON.gpx(gpxDoc);
+  return togeojson.gpx(gpxDoc); // lowercase "togeojson"
 }
 
-function formatTime(hours) {
-  const d = new Date(2023, 0, 2, 12, 0); // Base: Mon 12:00
-  d.setHours(d.getHours() + hours);
-  return d.toLocaleString("en-GB", {
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    day: "numeric",
-    month: "short"
-  });
-}
-
-function setupPlanner() {
-  const planner = document.getElementById("planner");
-  let totalTime = 0;
-  let html = `<h2>Segment Plan (Goal: 96h)</h2><table><tr>
-    <th>Segment</th><th>Distance (km)</th><th>Run Time (h)</th><th>Rest (h)</th>
-    <th>Arrival</th><th>Departure</th><th>Total Elapsed</th><th>Cutoff</th>
-  </tr>`;
-
-  for (let i = 0; i < pacePlan.length; i++) {
-    const seg = pacePlan[i];
-    const dist = seg.to - seg.from;
-    const run = seg.runtime;
-    const rest = seg.rest;
-    const arrival = formatTime(totalTime + run);
-    totalTime += run;
-    const departure = formatTime(totalTime + rest);
-    totalTime += rest;
-
-    html += `<tr>
-      <td>${aidStations[i].name} → ${aidStations[i + 1].name}</td>
-      <td>${dist}</td>
-      <td>${run}</td>
-      <td><input type="number" min="0" max="5" value="${rest}" data-index="${i}" /></td>
-      <td>${arrival}</td>
-      <td>${departure}</td>
-      <td>${Math.round(totalTime)}h</td>
-      <td>${aidStations[i + 1].cutoff}</td>
-    </tr>`;
-  }
-
-  html += `</table>`;
-  planner.innerHTML = html;
-
-  // Handle rest time updates
-  planner.querySelectorAll('input[type="number"]').forEach(input => {
-    input.addEventListener('change', () => {
-      const idx = Number(input.dataset.index);
-      pacePlan[idx].rest = Number(input.value);
-      setupPlanner(); // Re-render with updated rests
-    });
-  });
-}
-
+// Setup map and draw route
 async function initMap() {
-  const map = L.map('map').setView([68.3, 23.6], 8);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18
-  }).addTo(map);
+  const geojson = await loadGPX();
+  const map = L.map('map');
+  const gpxLayer = L.geoJSON(geojson);
+  gpxLayer.addTo(map);
+  map.fitBounds(gpxLayer.getBounds());
 
-  const geojson = await loadGPX("nuts300.gpx");
-
-  const track = L.geoJSON(geojson, {
-    style: { color: "blue" }
-  }).addTo(map);
-  map.fitBounds(track.getBounds());
-
-  aidStations.forEach((a) => {
-    const pt = geojson.features[0].geometry.coordinates.find(coord => coord.length === 2);
-    if (pt) {
-      L.marker([pt[1], pt[0]], { title: a.name }).addTo(map)
-        .bindPopup(`<b>${a.name}</b><br>${a.km} km<br>Cutoff: ${a.cutoff}`);
-    }
+  // Add aid station markers
+  aidStations.forEach((station, i) => {
+    const marker = L.marker(gpxLayer.getBounds().getCenter(), {
+      title: station.name
+    }).addTo(map);
+    marker.bindPopup(`<b>${station.name}</b><br>Cutoff: ${station.cutoff}`);
   });
 }
 
-function drawChart() {
-  const ctx = document.getElementById("chart").getContext("2d");
-  const labels = ["Start", "Kalmankaltio", "Hetta", "Pallas", "Finish"];
-  const data = pacePlan.reduce(
-    (acc, seg, i) => {
-      acc.dist += seg.to - seg.from;
-      acc.time += seg.runtime + seg.rest;
-      acc.dists.push(seg.to);
-      acc.times.push(acc.time);
-      return acc;
-    },
-    { dist: 0, time: 0, dists: [0], times: [0] }
-  );
+// Setup table with pacing plan
+function setupPlanner() {
+  const tbody = document.querySelector('#planTable tbody');
+  tbody.innerHTML = "";
 
-  new Chart(ctx, {
-    type: "line",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: "Cumulative Time (h)",
-          data: data.times,
-          borderColor: "blue",
-          fill: false
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        y: { title: { display: true, text: "Time (h)" }, beginAtZero: true },
-        x: { title: { display: true, text: "Aid Station" } }
-      }
-    }
+  plan.forEach((seg, i) => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${seg.segment}</td>
+      <td>${seg.dist}</td>
+      <td>${seg.run}</td>
+      <td contenteditable="true">${seg.rest}</td>
+      <td>${seg.arrival}</td>
+      <td>${seg.cutoff}</td>
+    `;
+    tbody.appendChild(row);
   });
 }
 
-(async function () {
-  await initMap();
-  setupPlanner();
-  drawChart();
-})();
+initMap();
+setupPlanner();
