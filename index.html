@@ -2,29 +2,39 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EnduroSync – NUTS300 Planner</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NUTS 300 Planner</title>
+  <link rel="icon" href="favicon.ico" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body { font-family: sans-serif; margin: 0; }
+    body { margin: 0; font-family: sans-serif; }
     #map { height: 50vh; }
-    #chart { height: 30vh; }
-    #planner { padding: 1em; }
-    table { border-collapse: collapse; width: 100%; margin-top: 1em; }
-    th, td { border: 1px solid #ccc; padding: 0.5em; text-align: center; }
-    input[type="number"] { width: 4em; }
+    #planner { padding: 1rem; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: center; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <canvas id="chart"></canvas>
-  <div id="planner"></div>
+  <div id="planner">
+    <h2>Pacing Plan (Goal: 96h)</h2>
+    <table id="planTable">
+      <thead>
+        <tr>
+          <th>Segment</th>
+          <th>Distance (km)</th>
+          <th>Run Time (h)</th>
+          <th>Rest Time (h)</th>
+          <th>Arrival</th>
+          <th>Cutoff</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
-  <!-- Load scripts -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://unpkg.com/@tmcw/togeojson@0.16.0/togeojson.js"></script>
+  <script src="togeojson.js"></script>
   <script type="module" src="main.js"></script>
 </body>
 </html>
