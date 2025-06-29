@@ -1,87 +1,67 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>EnduroSync Pacing Planner</title>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- Leaflet CSS (no integrity for now to avoid blocking) -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
-
-  <!-- Your favicon -->
+  <title>EnduroSync Pacing Planner</title>
   <link rel="icon" href="favicon.ico" />
-
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    #map {
-      height: 400px;
-      margin-bottom: 1rem;
-    }
     body {
-      font-family: Arial, sans-serif;
+      font-family: sans-serif;
       margin: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    #map {
+      height: 50vh;
+    }
+    #chart {
+      height: 30vh;
+    }
+    #planner {
       padding: 1rem;
+      overflow-x: auto;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 1rem;
     }
     th, td {
-      padding: 0.5rem;
       border: 1px solid #ccc;
+      padding: 0.5rem;
       text-align: center;
     }
-    canvas {
-      max-width: 100%;
-      margin-top: 1rem;
+    th {
+      background: #f0f0f0;
     }
-    h1 {
-      font-size: 1.5rem;
-      margin-bottom: 1rem;
+    input[type="number"] {
+      width: 60px;
     }
   </style>
 </head>
 <body>
-  <h1>EnduroSync NUTS 300 Pacing Planner</h1>
   <div id="map"></div>
-  <canvas id="elevationChart"></canvas>
-
-  <div>
-    <label for="goalTime">Goal Finish Time (hours):</label>
-    <input type="number" id="goalTime" value="96" min="40" max="126" step="1" />
-    <button id="updatePlan">Update Plan</button>
+  <canvas id="chart"></canvas>
+  <div id="planner">
+    <table>
+      <thead>
+        <tr>
+          <th>Segment</th>
+          <th>Distance (km)</th>
+          <th>Run Time (h)</th>
+          <th>Arrival</th>
+          <th>Rest (h)</th>
+          <th>Departure</th>
+          <th>Cutoff</th>
+          <th>Margin</th>
+        </tr>
+      </thead>
+      <tbody id="plan-table-body"></tbody>
+    </table>
   </div>
 
-  <table id="paceTable">
-    <thead>
-      <tr>
-        <th>Segment</th>
-        <th>Distance (km)</th>
-        <th>Run Time (h)</th>
-        <th>Pace (km/h)</th>
-        <th>Rest (h)</th>
-        <th>Arrival</th>
-        <th>Cutoff</th>
-      </tr>
-    </thead>
-    <tbody>
-      <!-- Filled dynamically by main.js -->
-    </tbody>
-  </table>
-
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- Chart.js UMD (not ESM) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-  <!-- togeojson for parsing GPX -->
-  <script src="https://cdn.jsdelivr.net/npm/@tmcw/togeojson@0.16.0/dist/togeojson.umd.js"></script>
-
-  <!-- Your main script -->
-  <script type="module" src="main.js?v=latest"></script>
+  <script type="module" src="main.js"></script>
 </body>
 </html>
