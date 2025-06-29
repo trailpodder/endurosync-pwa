@@ -1,91 +1,113 @@
-import { toGeoJSON } from 'https://cdn.jsdelivr.net/npm/@tmcw/togeojson@0.16.0/dist/togeojson.umd.js';
-
-const map = L.map('map').setView([68.5, 21.5], 8);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 18
-}).addTo(map);
+import * as toGeoJSON from './togeojson.umd.js';
+import Chart from 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
 
 const aidStations = [
   { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00" },
   { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00", rest: 1 },
   { name: "Hetta", km: 192, cutoff: "Thu 13:00", rest: 2 },
   { name: "Pallas", km: 256, cutoff: "Fri 13:00", rest: 3 },
-  { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00" }
+  { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00" },
 ];
 
-function parseCutoff(cutoffStr) {
-  const [day, time] = cutoffStr.split(' ');
-  const baseDate = new Date("2025-07-14T12:00:00"); // Race starts Mon 12:00
-  const days = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5 };
-  const [h, m] = time.split(':').map(Number);
-  const cutoff = new Date(baseDate);
-  cutoff.setDate(baseDate.getDate() + days[day]);
-  cutoff.setHours(h, m);
-  return cutoff;
+const goalTotalHours = 96;
+
+const parseTime = (str) => {
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const [dayStr, timeStr] = str.split(" ");
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  const dayIndex = days.indexOf(dayStr);
+  const now = new Date("2025-07-07T12:00:00"); // Arbitrary base Monday
+  const date = new Date(now);
+  date.setDate(now.getDate() + ((dayIndex - now.getDay() + 7) % 7));
+  date.setHours(hours, minutes, 0, 0);
+  return date;
+};
+
+function formatTime(date) {
+  return date.toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 function setupPlanner() {
-  const planBody = document.getElementById("plan-body");
-  planBody.innerHTML = "";
+  const tbody = document.getElementById("plan-table-body");
+  tbody.innerHTML = "";
 
-  let currentTime = new Date("2025-07-14T12:00:00"); // Mon 12:00 start
-  let lastKm = 0;
-  let totalTime = 0;
-
-  for (let i = 1; i < aidStations.length; i++) {
-    const prev = aidStations[i - 1];
-    const curr = aidStations[i];
-
-    const segmentKm = curr.km - lastKm;
-    const cutoff = parseCutoff(curr.cutoff);
-    const rest = curr.rest || 0;
-
-    // Calculate available time for segment
-    const latestArrival = new Date(cutoff.getTime() - (rest + 1) * 3600000); // cutoff - rest - 1h margin
-    const runTimeHrs = (latestArrival - currentTime) / 3600000;
-
-    const pace = (segmentKm / runTimeHrs).toFixed(2);
-    const arrival = new Date(currentTime.getTime() + runTimeHrs * 3600000);
-    totalTime += runTimeHrs + rest;
-    lastKm = curr.km;
-
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${prev.name} → ${curr.name}</td>
-      <td>${segmentKm.toFixed(1)} km</td>
-      <td>${runTimeHrs.toFixed(2)} h</td>
-      <td>${pace} km/h</td>
-      <td>${curr.cutoff}</td>
-    `;
-    planBody.appendChild(row);
-
-    currentTime = new Date(arrival.getTime() + rest * 3600000);
+  const segments = [];
+  for (let i = 0; i < aidStations.length - 1; i++) {
+    const from = aidStations[i];
+    const to = aidStations[i + 1];
+    const segmentDistance = to.km - from.km;
+    const rest = to.rest || 0;
+    segments.push({ from, to, distance: segmentDistance, rest });
   }
 
-  const summary = document.createElement("tr");
-  summary.innerHTML = `
-    <td><strong>Total</strong></td>
-    <td><strong>326 km</strong></td>
-    <td><strong>${totalTime.toFixed(2)} h</strong></td>
-    <td colspan="2"></td>
-  `;
-  planBody.appendChild(summary);
+  // Distribute time based on default plan
+  const defaultPlan = [
+    { run: 18, rest: 1 },
+    { run: 30, rest: 2 },
+    { run: 19, rest: 3 },
+    { run: 23, rest: 0 },
+  ];
+
+  let currentTime = parseTime(aidStations[0].cutoff); // Start time
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const runTime = defaultPlan[i].run;
+    const restTime = defaultPlan[i].rest;
+
+    const arrival = new Date(currentTime.getTime() + runTime * 60 * 60 * 1000);
+    const cutoffTime = parseTime(seg.to.cutoff);
+    const departure = new Date(arrival.getTime() + restTime * 60 * 60 * 1000);
+    const margin = Math.round((cutoffTime - departure) / (1000 * 60 * 60));
+
+    tbody.innerHTML += `
+      <tr>
+        <td>${seg.from.name} → ${seg.to.name}</td>
+        <td>${seg.distance.toFixed(1)}</td>
+        <td>${runTime}</td>
+        <td>${formatTime(arrival)}</td>
+        <td><input type="number" value="${restTime}" min="0" max="5" step="1" /></td>
+        <td>${formatTime(departure)}</td>
+        <td>${seg.to.cutoff}</td>
+        <td>${margin} h</td>
+      </tr>
+    `;
+
+    currentTime = departure;
+  }
 }
 
-function loadGPX(url) {
-  fetch(url)
-    .then(res => res.text())
-    .then(gpxText => {
-      const parser = new DOMParser();
-      const xml = parser.parseFromString(gpxText, "application/xml");
-      const geojson = toGeoJSON.gpx(xml);
-      const gpxLayer = L.geoJSON(geojson).addTo(map);
-      map.fitBounds(gpxLayer.getBounds());
-    })
-    .catch(err => console.error("Error loading GPX:", err));
+async function loadGPX() {
+  const res = await fetch("nuts300.gpx");
+  const text = await res.text();
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(text, "text/xml");
+  const geojson = toGeoJSON.gpx(xml);
+  return geojson;
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  loadGPX("nuts300.gpx");
-  setupPlanner();
-});
+async function initMap() {
+  const map = L.map('map').setView([68.0, 23.5], 8);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  const data = await loadGPX();
+  const coords = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+
+  const line = L.polyline(coords, { color: 'blue' }).addTo(map);
+  map.fitBounds(line.getBounds());
+
+  // Mark aid stations
+  aidStations.forEach(station => {
+    const closest = coords.reduce((prev, curr) => {
+      const prevDist = Math.abs(prev[0] - station.km);
+      const currDist = Math.abs(curr[0] - station.km);
+      return currDist < prevDist ? curr : prev;
+    });
+    L.marker(closest, { title: station.name }).addTo(map).bindPopup(station.name);
+  });
+}
+
+initMap();
+setupPlanner();
