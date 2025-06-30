@@ -2,38 +2,40 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NUTS 300 Planner</title>
   <link rel="icon" href="favicon.ico" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body { margin: 0; font-family: sans-serif; }
-    #map { height: 50vh; }
-    #planner { padding: 1rem; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: center; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    #map { height: 50%; }
+    #chart { height: 300px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 4px; font-size: 14px; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div id="planner">
-    <h2>Pacing Plan (Goal: 96h)</h2>
-    <table id="planTable">
-      <thead>
-        <tr>
-          <th>Segment</th>
-          <th>Distance (km)</th>
-          <th>Run Time (h)</th>
-          <th>Rest Time (h)</th>
-          <th>Arrival</th>
-          <th>Cutoff</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
+  <canvas id="chart"></canvas>
+  <table id="planner">
+    <thead>
+      <tr>
+        <th>Segment</th>
+        <th>Distance (km)</th>
+        <th>Run Time (h)</th>
+        <th>Rest (h)</th>
+        <th>Total Time (h)</th>
+        <th>Cutoff (h)</th>
+        <th>Avg Speed (km/h)</th>
+        <th>Arrival</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
+  <!-- Scripts -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="togeojson.js"></script>
   <script type="module" src="main.js"></script>
 </body>
