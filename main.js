@@ -1,128 +1,101 @@
-// No import of Chart needed, it's global
+import L from "https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js";
+import * as togeojson from './togeojson.js';
 
+let map, gpxLayer, windowPaceChart;
 const aidStations = [
-  { name: "Start (Njurgulahti)", km: 0, cutoff: 0 },
-  { name: "Kalmakaltio", km: 88, cutoff: 24 },
-  { name: "Hetta", km: 192, cutoff: 73 },
-  { name: "Pallas", km: 256, cutoff: 97 },
-  { name: "Finish (Äkäslompolo)", km: 326, cutoff: 126 }
+  { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00" },
+  { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00" },
+  { name: "Hetta", km: 192, cutoff: "Thu 13:00" },
+  { name: "Pallas", km: 256, cutoff: "Fri 13:00" },
+  { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00" },
 ];
 
-let map, routeLine;
+const segmentDefaults = [
+  { runTime: 18, rest: 1 },  // Start–Kalmankaltio
+  { runTime: 30, rest: 2 },  // Kalmankaltio–Hetta
+  { runTime: 19, rest: 3 },  // Hetta–Pallas
+  { runTime: 23, rest: 0 }   // Pallas–Finish
+];
 
-async function loadGPX() {
-  const res = await fetch("nuts300.gpx");
-  const text = await res.text();
+async function loadGPX(url) {
+  const res = await fetch(url);
+  const gpxText = await res.text();
   const parser = new DOMParser();
-  const xml = parser.parseFromString(text, "application/xml");
+  const xml = parser.parseFromString(gpxText, "text/xml");
   const geojson = togeojson.gpx(xml);
   return geojson;
 }
 
-async function initMap() {
-  map = L.map("map").setView([68.3, 22.5], 8);
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+function initMap() {
+  map = L.map("map").setView([68.3, 23.7], 8);
 
-  const gpxData = await loadGPX();
-  routeLine = L.geoJSON(gpxData, { style: { color: "blue" } }).addTo(map);
-  map.fitBounds(routeLine.getBounds());
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors",
+  }).addTo(map);
+}
 
-  aidStations.forEach((pt) => {
-    if (pt.km === 0 || pt.km === 326 || pt.cutoff > 0) {
-      L.marker(getLatLngAtDistance(gpxData, pt.km))
-        .addTo(map)
-        .bindPopup(pt.name);
-    }
+function plotRoute(geojson) {
+  gpxLayer = L.geoJSON(geojson, {
+    style: { color: "blue", weight: 3 },
+  }).addTo(map);
+  map.fitBounds(gpxLayer.getBounds());
+}
+
+function plotAidStations() {
+  aidStations.forEach((a) => {
+    // Just simulate lat/lon for now, should be real
+    const lat = 68 + a.km * 0.01;
+    const lon = 23.7;
+    L.marker([lat, lon]).addTo(map).bindPopup(`${a.name}<br>${a.cutoff}`);
   });
-
-  recalculatePlan();
 }
 
-function getLatLngAtDistance(geojson, targetKm) {
-  let total = 0;
-  const coords = geojson.features[0].geometry.coordinates;
-  for (let i = 1; i < coords.length; i++) {
-    const [lon1, lat1] = coords[i - 1];
-    const [lon2, lat2] = coords[i];
-    const dist = haversine(lat1, lon1, lat2, lon2);
-    total += dist;
-    if (total >= targetKm) return [lat2, lon2];
-  }
-  return [coords[coords.length - 1][1], coords[coords.length - 1][0]];
-}
+function displayPlan() {
+  const table = document.getElementById("pace-table");
+  if (!table) return;
 
-function haversine(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+  table.innerHTML = `<tr>
+    <th>Segment</th>
+    <th>Distance (km)</th>
+    <th>Run Time (h)</th>
+    <th>Rest (h)</th>
+    <th>Arrival</th>
+    <th>Cutoff</th>
+  </tr>`;
 
-function recalculatePlan() {
-  const goal = Number(document.getElementById("goalTime").value);
-  const rest1 = Number(document.getElementById("rest1").value);
-  const rest2 = Number(document.getElementById("rest2").value);
-  const rest3 = Number(document.getElementById("rest3").value);
-  const rests = [0, rest1, rest2, rest3, 0];
-
-  const output = [];
-  const segments = [];
-
-  for (let i = 0; i < aidStations.length - 1; i++) {
+  let cumulativeTime = new Date("2025-09-01T12:00:00"); // Mon 12:00 start
+  for (let i = 0; i < segmentDefaults.length; i++) {
+    const s = segmentDefaults[i];
     const from = aidStations[i];
     const to = aidStations[i + 1];
-    const segmentDist = to.km - from.km;
-    const cutoffTime = to.cutoff;
-    const plannedArrival = segments.reduce((acc, s) => acc + s.total, 0);
-    const maxTime = cutoffTime - 1 - rests[i + 1]; // leave 1h buffer + rest
-    const segmentTime = maxTime - plannedArrival;
-    const pace = segmentDist / segmentTime;
+    const distance = to.km - from.km;
 
-    segments.push({
-      from: from.name,
-      to: to.name,
-      dist: segmentDist,
-      time: segmentTime,
-      pace: pace.toFixed(2),
-      rest: rests[i + 1],
-      total: segmentTime + rests[i + 1]
-    });
+    const runTime = s.runTime;
+    const rest = s.rest;
+    const arrival = new Date(cumulativeTime.getTime() + runTime * 60 * 60 * 1000);
+    const departure = new Date(arrival.getTime() + rest * 60 * 60 * 1000);
+
+    table.innerHTML += `<tr>
+      <td>${from.name} → ${to.name}</td>
+      <td>${distance}</td>
+      <td>${runTime}</td>
+      <td>${rest}</td>
+      <td>${arrival.toUTCString().slice(0, -7)}</td>
+      <td>${to.cutoff}</td>
+    </tr>`;
+
+    cumulativeTime = departure;
   }
 
-  const lines = segments.map((s) =>
-    `${s.from} → ${s.to}: ${s.dist} km in ${s.time.toFixed(2)} h, rest ${s.rest} h → pace ${s.pace} km/h`
-  );
-  document.getElementById("output").textContent = lines.join("\n");
-
-  const ctx = document.getElementById("paceChart").getContext("2d");
-  if (window.paceChart) window.paceChart.destroy();
-  window.paceChart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: segments.map((s) => s.to),
-      datasets: [
-        {
-          label: "Pace (km/h)",
-          data: segments.map((s) => s.pace),
-          backgroundColor: "rgba(75,192,192,0.6)"
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        y: { beginAtZero: true, title: { display: true, text: "km/h" } }
-      }
-    }
-  });
+  document.getElementById("goal-time").textContent = `Goal Finish: ${cumulativeTime.toUTCString().slice(0, -7)}`;
 }
 
-initMap();
+async function main() {
+  initMap();
+  const geojson = await loadGPX("nuts300.gpx");
+  plotRoute(geojson);
+  plotAidStations();
+  displayPlan();
+}
+
+main();
