@@ -5,32 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NUTS 300 Planner</title>
   <link rel="icon" href="favicon.ico" />
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body { margin: 0; font-family: sans-serif; }
-    #map { height: 45vh; }
-    #planner { padding: 1em; }
-    .segment { margin-bottom: 1em; }
-    label { display: inline-block; width: 120px; }
-    input[type='number'] { width: 60px; }
-    #chart { height: 300px; margin: 1em; }
+    #map { height: 50vh; }
+    #planner { padding: 1em; font-family: sans-serif; }
+    canvas { max-width: 100%; }
+    label, input, select { margin: 0.25em 0; display: block; }
   </style>
+  <!-- Global Chart.js (UMD build) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
   <div id="map"></div>
   <div id="planner">
-    <label for="goalTime">Goal Time (h):</label>
-    <input type="number" id="goalTime" value="96" min="60" max="126" />
-    <button onclick="recalculatePlan()">Update Plan</button>
-    <div id="segments"></div>
+    <h2>NUTS 300 Planner</h2>
+    <label>
+      Goal Finish Time (hours):
+      <input id="goalTime" type="number" value="96" min="70" max="126" />
+    </label>
+    <label>
+      Kalmakaltio Rest Time (h):
+      <input id="rest1" type="number" value="1" min="0" max="5" />
+    </label>
+    <label>
+      Hetta Rest Time (h):
+      <input id="rest2" type="number" value="2" min="0" max="5" />
+    </label>
+    <label>
+      Pallas Rest Time (h):
+      <input id="rest3" type="number" value="3" min="0" max="5" />
+    </label>
+    <button onclick="recalculatePlan()">Recalculate Plan</button>
+    <canvas id="paceChart" height="100"></canvas>
+    <pre id="output"></pre>
   </div>
-  <canvas id="chart"></canvas>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="togeojson.js"></script>
   <script type="module" src="main.js"></script>
 </body>
