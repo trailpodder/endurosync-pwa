@@ -1,144 +1,120 @@
-import * as L from "https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js";
-import { Line } from "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.esm.min.js";
-
-// Aid stations (excluding water-only points)
-const aidStations = [
-  { name: "Start (Njurgulahti)", distance: 0, cutoff: "Mon 12:00" },
-  { name: "Kalmankaltio", distance: 88, cutoff: "Tue 12:00" },
-  { name: "Hetta", distance: 192, cutoff: "Thu 13:00" },
-  { name: "Pallas", distance: 256, cutoff: "Fri 13:00" },
-  { name: "Finish (Äkäslompolo)", distance: 326, cutoff: "Sat 18:00" },
+let map, routeLine, paceChart;
+let aidStations = [
+  { name: "Start", km: 0, cutoff: "Mon 12:00", latlng: [68.4955, 23.7432] },
+  { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00", latlng: [68.2704, 23.9318] },
+  { name: "Hetta", km: 192, cutoff: "Thu 13:00", latlng: [68.3834, 23.6197] },
+  { name: "Pallas", km: 256, cutoff: "Fri 13:00", latlng: [68.0538, 24.0703] },
+  { name: "Finish", km: 326, cutoff: "Sat 18:00", latlng: [67.6070, 24.1436] },
 ];
 
-// Default values
-let goalTime = 96; // hours
-let restTimes = [1, 2, 3]; // hours at each aid station (except start/finish)
+let defaultRests = [1, 2, 3]; // in hours
+let goalTime = 96; // in hours
 
-// Store chart globally for redraw
-let paceChart = null;
-
-async function loadGPX() {
-  const response = await fetch("nuts300.gpx");
-  const gpxText = await response.text();
-
-  const parser = new DOMParser();
-  const xml = parser.parseFromString(gpxText, "application/xml");
-
-  const geojson = togeojson.gpx(xml);
-  return geojson;
+function loadGPX(url, callback) {
+  fetch(url)
+    .then(res => res.text())
+    .then(gpxText => {
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(gpxText, 'text/xml');
+      const geojson = togeojson.gpx(xml);
+      callback(geojson);
+    });
 }
 
-function formatTime(hours) {
-  const days = Math.floor(hours / 24);
-  const h = Math.floor(hours % 24);
-  const m = Math.round((hours % 1) * 60);
-  return `+${days}d ${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+function initMap(geojson) {
+  map = L.map('map').setView([68.2, 23.7], 8);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+  routeLine = L.geoJSON(geojson, {
+    style: { color: 'blue', weight: 3 }
+  }).addTo(map);
+
+  aidStations.forEach((a, idx) => {
+    L.marker(a.latlng, {
+      icon: L.icon({
+        iconUrl: 'favicon.ico',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      })
+    }).addTo(map).bindPopup(`<b>${a.name}</b><br>${a.km} km<br>Cutoff: ${a.cutoff}`);
+
+    // Add rest sliders
+    if (idx > 0 && idx < aidStations.length - 1) {
+      const restId = `rest${idx}`;
+      document.getElementById('rest-controls').innerHTML += `
+        <label>${a.name} rest (h): 
+          <input type="number" id="${restId}" value="${defaultRests[idx - 1]}" min="0" max="6" step="1">
+        </label><br>
+      `;
+    }
+  });
+
+  document.getElementById('goal-time').value = goalTime;
+  recalculatePlan();
 }
 
 function recalculatePlan() {
-  const rest0 = parseFloat(document.getElementById("rest0").value) || 0;
-  const rest1 = parseFloat(document.getElementById("rest1").value) || 0;
-  const rest2 = parseFloat(document.getElementById("rest2").value) || 0;
-  const rests = [rest0, rest1, rest2];
+  goalTime = parseInt(document.getElementById('goal-time').value);
+  let rests = [
+    0,
+    parseInt(document.getElementById('rest1').value || 0),
+    parseInt(document.getElementById('rest2').value || 0),
+    parseInt(document.getElementById('rest3').value || 0),
+    0
+  ];
 
-  goalTime = parseFloat(document.getElementById("goalTime").value) || 96;
-
-  const segmentDistances = [88, 104, 64, 70];
-  const totalDistance = 326;
-
-  const totalRest = rests.reduce((a, b) => a + b, 0);
-  const runTime = goalTime - totalRest;
-
-  // Adjust paces so that each segment hits target arrival before cutoff minus rest and margin
-  const margin = 1;
-  const cutoffs = [24, 73, 97, 126];
-  let cumulativeTime = 0;
-  let dataLabels = [];
-  let dataSpeeds = [];
-
-  let tableBody = document.getElementById("planTable");
-  tableBody.innerHTML = "";
-
-  for (let i = 0; i < segmentDistances.length; i++) {
-    const cutoff = cutoffs[i];
-    const segmentRest = rests[i] || 0;
-    const maxAllowedTime = cutoff - cumulativeTime - margin - segmentRest;
-    const pace = segmentDistances[i] / maxAllowedTime;
-    const time = segmentDistances[i] / pace;
-
-    const arrival = cumulativeTime + time;
-    const dep = arrival + segmentRest;
-    cumulativeTime = dep;
-
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${aidStations[i].name} → ${aidStations[i + 1].name}</td>
-      <td>${segmentDistances[i].toFixed(1)} km</td>
-      <td>${time.toFixed(2)} h</td>
-      <td>${(segmentDistances[i] / time).toFixed(2)} km/h</td>
-      <td>${aidStations[i + 1].cutoff}</td>
-    `;
-    tableBody.appendChild(row);
-
-    dataLabels.push(`${aidStations[i].name} → ${aidStations[i + 1].name}`);
-    dataSpeeds.push((segmentDistances[i] / time).toFixed(2));
+  let segments = [];
+  for (let i = 0; i < aidStations.length - 1; i++) {
+    const dist = aidStations[i + 1].km - aidStations[i].km;
+    segments.push({ from: aidStations[i].name, to: aidStations[i + 1].name, distance: dist });
   }
 
-  document.getElementById("totalTime").innerText = cumulativeTime.toFixed(2);
+  let totalRunTime = goalTime - rests.reduce((a, b) => a + b, 0);
+  let paceRatios = [0.2, 0.32, 0.22, 0.26]; // Custom ratios to simulate slowing down
+  let paces = segments.map((s, i) => {
+    let segTime = totalRunTime * paceRatios[i];
+    return {
+      label: `${s.from} → ${s.to}`,
+      pace: (s.distance / segTime).toFixed(2),
+      hours: segTime.toFixed(1)
+    };
+  });
 
-  // Update chart
+  // Draw chart
+  const ctx = document.getElementById('paceChart').getContext('2d');
   if (paceChart) paceChart.destroy();
-  const ctx = document.getElementById("paceChart").getContext("2d");
-  paceChart = new Line(ctx, {
+  paceChart = new Chart(ctx, {
+    type: 'bar',
     data: {
-      labels: dataLabels,
+      labels: paces.map(p => p.label),
       datasets: [{
-        label: "Segment Speed (km/h)",
-        data: dataSpeeds,
-        fill: false,
-        borderColor: "orange",
-        tension: 0.1,
+        label: 'Pace (km/h)',
+        data: paces.map(p => p.pace),
+        backgroundColor: 'rgba(75, 192, 192, 0.7)'
       }]
     },
     options: {
       responsive: true,
       plugins: {
-        legend: { display: false }
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              let hours = paces[context.dataIndex].hours;
+              return `Pace: ${context.parsed.y} km/h (${hours} h)`;
+            }
+          }
+        }
       },
       scales: {
-        y: {
-          beginAtZero: true,
-          title: { display: true, text: "km/h" }
-        }
+        y: { beginAtZero: true, title: { display: true, text: 'km/h' } }
       }
     }
   });
 }
 
-async function initMap() {
-  const map = L.map("map").setView([68.5, 22.5], 8);
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "© OpenStreetMap contributors"
-  }).addTo(map);
-
-  const geojson = await loadGPX();
-  const gpxLayer = L.geoJSON(geojson, { style: { color: "blue" } }).addTo(map);
-  map.fitBounds(gpxLayer.getBounds());
-
-  // Add aid station markers
-  aidStations.forEach((s) => {
-    const label = `${s.name}\nCutoff: ${s.cutoff}`;
-    const marker = L.marker([0, 0], { title: label }).bindPopup(label);
-    marker.addTo(map);
-  });
-
-  recalculatePlan();
-}
-
-// Wire up inputs
-document.getElementById("goalTime").addEventListener("input", recalculatePlan);
-["rest0", "rest1", "rest2"].forEach(id =>
-  document.getElementById(id).addEventListener("input", recalculatePlan)
-);
-
-initMap();
+// Initialize
+window.addEventListener('DOMContentLoaded', () => {
+  loadGPX('nuts300.gpx', initMap);
+  document.getElementById('goal-time').addEventListener('input', recalculatePlan);
+});
