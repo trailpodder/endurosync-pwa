@@ -5,77 +5,35 @@
   <title>NUTS 300 Planner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- Leaflet CSS -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body {
-      margin: 0;
-      font-family: sans-serif;
-    }
-    #map {
-      height: 50vh;
-    }
-    .controls {
-      padding: 1em;
-      background: #f0f0f0;
-    }
-    .controls input {
-      width: 60px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 1em;
-    }
-    td, th {
-      border: 1px solid #ccc;
-      padding: 0.5em;
-      text-align: center;
-    }
-    canvas {
-      max-width: 100%;
-    }
+    #map { height: 400px; margin-bottom: 1rem; }
+    #elevation { width: 100%; height: 150px; }
+    .controls { margin: 1em 0; font-family: sans-serif; }
+    .segment { margin-bottom: 1em; }
   </style>
 </head>
 <body>
-
+  <h1>NUTS 300 Planner</h1>
   <div id="map"></div>
+  <canvas id="elevation"></canvas>
 
   <div class="controls">
-    <label>Goal Time (h): <input id="goalTime" type="number" value="96" /></label>
-    <br />
-    <label>Rest after Kalmankaltio (h): <input id="rest0" type="number" value="1" /></label>
-    <label>Rest after Hetta (h): <input id="rest1" type="number" value="2" /></label>
-    <label>Rest after Pallas (h): <input id="rest2" type="number" value="3" /></label>
-    <p>Total estimated time: <span id="totalTime">...</span> h</p>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Segment</th>
-          <th>Distance</th>
-          <th>Run Time</th>
-          <th>Pace</th>
-          <th>Cutoff</th>
-        </tr>
-      </thead>
-      <tbody id="planTable"></tbody>
-    </table>
-
-    <canvas id="paceChart" height="100"></canvas>
+    <label>Goal Time (hours): <input type="number" id="goalTime" value="96" /></label>
+    <div id="restInputs"></div>
+    <button onclick="recalculatePlan()">Recalculate</button>
   </div>
 
-  <!-- Leaflet JS -->
+  <table border="1" cellpadding="4" cellspacing="0">
+    <thead>
+      <tr><th>Segment</th><th>Distance (km)</th><th>Run Time (h)</th><th>Rest (h)</th><th>Arrival</th></tr>
+    </thead>
+    <tbody id="planTable"></tbody>
+  </table>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- Classic lowercase togeojson -->
-  <script src="https://unpkg.com/@tmcw/togeojson@0.16.0/dist/togeojson.js"></script>
-
-  <!-- Chart.js -->
-  <script type="module" src="main.js"></script>
-
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/@tmcw/togeojson@0.16.0"></script>
+  <script src="main.js"></script>
 </body>
 </html>
