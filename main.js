@@ -1,120 +1,111 @@
-let map, routeLine, paceChart;
-let aidStations = [
-  { name: "Start", km: 0, cutoff: "Mon 12:00", latlng: [68.4955, 23.7432] },
-  { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00", latlng: [68.2704, 23.9318] },
-  { name: "Hetta", km: 192, cutoff: "Thu 13:00", latlng: [68.3834, 23.6197] },
-  { name: "Pallas", km: 256, cutoff: "Fri 13:00", latlng: [68.0538, 24.0703] },
-  { name: "Finish", km: 326, cutoff: "Sat 18:00", latlng: [67.6070, 24.1436] },
+const aidStations = [
+  { name: "Start (Njurgulahti)", km: 0 },
+  { name: "Kalmankaltio", km: 88, rest: 1, cutoff: 24 },
+  { name: "Hetta", km: 192, rest: 2, cutoff: 73 },
+  { name: "Pallas", km: 256, rest: 3, cutoff: 97 },
+  { name: "Finish (Äkäslompolo)", km: 326, rest: 0, cutoff: 126 }
 ];
 
-let defaultRests = [1, 2, 3]; // in hours
-let goalTime = 96; // in hours
+let map, paceChart, trackLine;
 
-function loadGPX(url, callback) {
-  fetch(url)
-    .then(res => res.text())
-    .then(gpxText => {
-      const parser = new DOMParser();
-      const xml = parser.parseFromString(gpxText, 'text/xml');
-      const geojson = togeojson.gpx(xml);
-      callback(geojson);
-    });
-}
-
-function initMap(geojson) {
-  map = L.map('map').setView([68.2, 23.7], 8);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-  routeLine = L.geoJSON(geojson, {
-    style: { color: 'blue', weight: 3 }
+function initMap() {
+  map = L.map('map').setView([68.0, 23.5], 8);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
 
-  aidStations.forEach((a, idx) => {
-    L.marker(a.latlng, {
-      icon: L.icon({
-        iconUrl: 'favicon.ico',
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
-      })
-    }).addTo(map).bindPopup(`<b>${a.name}</b><br>${a.km} km<br>Cutoff: ${a.cutoff}`);
-
-    // Add rest sliders
-    if (idx > 0 && idx < aidStations.length - 1) {
-      const restId = `rest${idx}`;
-      document.getElementById('rest-controls').innerHTML += `
-        <label>${a.name} rest (h): 
-          <input type="number" id="${restId}" value="${defaultRests[idx - 1]}" min="0" max="6" step="1">
-        </label><br>
-      `;
+  aidStations.forEach(s => {
+    if (s.name.includes("Start") || s.name.includes("Finish") || s.cutoff) {
+      L.marker([0, 0]) // placeholder, set correct lat/lon after GPX loaded
+        .addTo(map)
+        .bindPopup(`${s.name} (${s.km} km)`);
     }
   });
 
-  document.getElementById('goal-time').value = goalTime;
+  loadGPX("nuts300.gpx");
+}
+
+async function loadGPX(file) {
+  const xml = await fetchGPX(file);
+  const geojson = togeojson.gpx(xml);
+
+  const coords = geojson.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+  if (trackLine) map.removeLayer(trackLine);
+  trackLine = L.polyline(coords, { color: 'blue' }).addTo(map);
+  map.fitBounds(trackLine.getBounds());
+
   recalculatePlan();
 }
 
 function recalculatePlan() {
-  goalTime = parseInt(document.getElementById('goal-time').value);
-  let rests = [
-    0,
-    parseInt(document.getElementById('rest1').value || 0),
-    parseInt(document.getElementById('rest2').value || 0),
-    parseInt(document.getElementById('rest3').value || 0),
-    0
-  ];
+  const goalTime = parseFloat(document.getElementById("goal-time").value);
+  const restControls = document.getElementById("rest-controls");
+  restControls.innerHTML = '';
 
-  let segments = [];
-  for (let i = 0; i < aidStations.length - 1; i++) {
-    const dist = aidStations[i + 1].km - aidStations[i].km;
-    segments.push({ from: aidStations[i].name, to: aidStations[i + 1].name, distance: dist });
+  const movingTime = goalTime - aidStations.reduce((sum, s) => sum + (s.rest || 0), 0);
+  const totalDist = aidStations[aidStations.length - 1].km;
+
+  const segments = [];
+  for (let i = 1; i < aidStations.length; i++) {
+    const dist = aidStations[i].km - aidStations[i - 1].km;
+    const ratio = dist / totalDist;
+    const moveHours = movingTime * ratio;
+    segments.push({
+      from: aidStations[i - 1].name,
+      to: aidStations[i].name,
+      distance: dist,
+      time: moveHours.toFixed(1)
+    });
+
+    // Editable rest control
+    if (aidStations[i].rest !== undefined) {
+      const input = document.createElement("input");
+      input.type = "number";
+      input.value = aidStations[i].rest;
+      input.min = 0;
+      input.max = 5;
+      input.step = 0.5;
+      input.dataset.index = i;
+      input.addEventListener("change", () => {
+        aidStations[i].rest = parseFloat(input.value);
+        recalculatePlan();
+      });
+      restControls.append(`Rest at ${aidStations[i].name}: `, input, "h", document.createElement("br"));
+    }
   }
 
-  let totalRunTime = goalTime - rests.reduce((a, b) => a + b, 0);
-  let paceRatios = [0.2, 0.32, 0.22, 0.26]; // Custom ratios to simulate slowing down
-  let paces = segments.map((s, i) => {
-    let segTime = totalRunTime * paceRatios[i];
-    return {
-      label: `${s.from} → ${s.to}`,
-      pace: (s.distance / segTime).toFixed(2),
-      hours: segTime.toFixed(1)
-    };
-  });
+  drawChart(segments);
+}
 
-  // Draw chart
+function drawChart(segments) {
+  const labels = segments.map(s => `${s.from} → ${s.to}`);
+  const times = segments.map(s => parseFloat(s.time));
+
+  if (paceChart) {
+    paceChart.destroy();
+  }
+
   const ctx = document.getElementById('paceChart').getContext('2d');
-  if (paceChart) paceChart.destroy();
   paceChart = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: paces.map(p => p.label),
+      labels,
       datasets: [{
-        label: 'Pace (km/h)',
-        data: paces.map(p => p.pace),
-        backgroundColor: 'rgba(75, 192, 192, 0.7)'
+        label: 'Estimated Segment Time (hours)',
+        data: times,
+        backgroundColor: 'rgba(75, 192, 192, 0.6)'
       }]
     },
     options: {
       responsive: true,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              let hours = paces[context.dataIndex].hours;
-              return `Pace: ${context.parsed.y} km/h (${hours} h)`;
-            }
-          }
-        }
-      },
       scales: {
-        y: { beginAtZero: true, title: { display: true, text: 'km/h' } }
+        y: {
+          title: { display: true, text: 'Hours' },
+          beginAtZero: true
+        }
       }
     }
   });
 }
 
-// Initialize
-window.addEventListener('DOMContentLoaded', () => {
-  loadGPX('nuts300.gpx', initMap);
-  document.getElementById('goal-time').addEventListener('input', recalculatePlan);
-});
+document.addEventListener("DOMContentLoaded", initMap);
