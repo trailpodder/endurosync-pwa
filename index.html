@@ -1,43 +1,32 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8">
   <title>NUTS 300 Planner</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
-    #map { height: 300px; }
-    #controls { margin: 1em 0; }
+    #map { height: 400px; margin-bottom: 10px; }
+    #chart { height: 150px; }
+    .controls { margin-bottom: 10px; }
+    .controls label { margin-right: 10px; }
   </style>
 </head>
 <body>
   <h1>NUTS 300 Planner</h1>
 
-  <div id="controls">
-    <label>Goal Time (hours):
-      <input type="number" id="goal-time" value="96" min="24" max="120" />
-    </label>
-    <div id="rest-controls"></div>
+  <div class="controls">
+    <label>Goal Time (hours): <input type="number" id="goalTime" value="96"></label>
+    <label>Rest Segment 1 (h): <input type="number" id="rest1" value="1"></label>
+    <label>Rest Segment 2 (h): <input type="number" id="rest2" value="2"></label>
+    <label>Rest Segment 3 (h): <input type="number" id="rest3" value="3"></label>
   </div>
 
   <div id="map"></div>
-  <canvas id="paceChart" width="600" height="200"></canvas>
+  <canvas id="chart"></canvas>
 
-  <!-- Leaflet -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <!-- togeojson -->
-  <script src="https://unpkg.com/@tmcw/togeojson@0.16.0/dist/togeojson.js"></script>
-  <!-- GPX XML parser -->
-  <script>
-    function fetchGPX(url) {
-      return fetch(url)
-        .then(res => res.text())
-        .then(str => new window.DOMParser().parseFromString(str, "text/xml"));
-    }
-  </script>
-  <!-- Main logic -->
+  <script src="togeojson.js"></script>
   <script src="main.js"></script>
 </body>
 </html>
