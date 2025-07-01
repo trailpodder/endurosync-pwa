@@ -1,116 +1,49 @@
+// main.js (updated to fix aid station coordinates and show start/finish markers)
+
+let map;
+let routeLine;
+let aidStationMarkers = [];
+
 const aidStations = [
-  { name: "Start", km: 0 },
-  { name: "Kalmankaltio", km: 88 },
-  { name: "Hetta", km: 192 },
-  { name: "Pallas", km: 256 },
-  { name: "Finish", km: 326 }
+  { name: "Start (Njurgulahti)", km: 0, lat: 68.50835, lon: 23.53214, cutoff: null },
+  { name: "Kalmankaltio", km: 88, lat: 68.6503, lon: 23.9714, cutoff: "Sat 14:00" },
+  { name: "Hetta", km: 192, lat: 68.3838, lon: 23.6221, cutoff: "Sun 10:00" },
+  { name: "Pallas", km: 256, lat: 68.0605, lon: 24.0709, cutoff: "Sun 23:00" },
+  { name: "Rauhala (water)", km: 277, lat: 67.9253, lon: 24.1501, cutoff: null },
+  { name: "Pahtavuoma (water)", km: 288, lat: 67.8436, lon: 24.1964, cutoff: null },
+  { name: "Peurakaltio (water)", km: 301, lat: 67.7622, lon: 24.2115, cutoff: null },
+  { name: "Finish (Äkäslompolo)", km: 326, lat: 67.6100, lon: 24.1500, cutoff: "Mon 18:00" }
 ];
 
-let map, routeLine, paceChart, elevationData = [];
-
 async function loadGPX(url) {
-  const res = await fetch(url);
-  const text = await res.text();
+  const response = await fetch(url);
+  const text = await response.text();
   const parser = new DOMParser();
-  const doc = parser.parseFromString(text, "application/xml");
-  const geojson = togeojson.gpx(doc);
-  return geojson;
+  const xml = parser.parseFromString(text, "application/xml");
+  return togeojson.gpx(xml);
 }
 
-function computeDistances(coords) {
-  let total = 0, dists = [0];
-  for (let i = 1; i < coords.length; i++) {
-    const dx = coords[i][0] - coords[i-1][0];
-    const dy = coords[i][1] - coords[i-1][1];
-    const dist = Math.sqrt(dx*dx + dy*dy) * 111.32; // Approx km
-    total += dist;
-    dists.push(total);
-  }
-  return dists;
-}
-
-function getAidStationCoords(coords, dists) {
-  return aidStations.map(station => {
-    let idx = dists.findIndex(d => d >= station.km);
-    return { ...station, coord: coords[idx] };
-  });
-}
-
-function recalculatePlan() {
-  const goalH = parseFloat(document.getElementById('goalTime').value);
-  const r1 = parseFloat(document.getElementById('rest1').value);
-  const r2 = parseFloat(document.getElementById('rest2').value);
-  const r3 = parseFloat(document.getElementById('rest3').value);
-
-  const runTimes = [
-    18,   // Start -> Kalman
-    30,   // Kalman -> Hetta
-    19,   // Hetta -> Pallas
-    23    // Pallas -> Finish
-  ];
-
-  const rests = [r1, r2, r3];
-  const segments = [];
-  let t = 0;
-  for (let i = 0; i < runTimes.length; i++) {
-    segments.push({ from: aidStations[i].name, to: aidStations[i+1].name, time: runTimes[i], start: t });
-    t += runTimes[i];
-    if (i < rests.length) t += rests[i];
-  }
-
-  // Update chart
-  const labels = segments.map(s => `${s.from}→${s.to}`);
-  const times = segments.map(s => s.time);
-  const cumu = segments.map(s => s.start + s.time);
-
-  if (paceChart) paceChart.destroy();
-  paceChart = new Chart(document.getElementById('paceChart'), {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Segment Run Time (h)',
-        data: times,
-        backgroundColor: 'steelblue'
-      }]
-    },
-    options: {
-      plugins: {
-        title: {
-          display: true,
-          text: `Arrival at Finish: ${t.toFixed(1)} h (Goal: ${goalH} h)`
-        }
-      },
-      scales: {
-        y: { title: { display: true, text: 'Hours' } }
-      }
-    }
+function addAidStationMarkers() {
+  aidStations.forEach((station, index) => {
+    const marker = L.marker([station.lat, station.lon])
+      .addTo(map)
+      .bindPopup(`<b>${station.name}</b><br>KM ${station.km}${station.cutoff ? `<br>Cutoff: ${station.cutoff}` : ""}`);
+    aidStationMarkers.push(marker);
   });
 }
 
 async function initMap() {
-  const geojson = await loadGPX("nuts300.gpx");
-  const coords = geojson.features[0].geometry.coordinates;
-  const latlngs = coords.map(c => [c[1], c[0]]);
-  const dists = computeDistances(coords);
+  map = L.map("map").setView([68.4, 23.8], 8);
 
-  map = L.map("map").setView(latlngs[0], 10);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
-  routeLine = L.polyline(latlngs, { color: "darkred" }).addTo(map);
-  map.fitBounds(routeLine.getBounds());
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
 
-  // Aid stations
-  const aidWithCoords = getAidStationCoords(coords, dists);
-  aidWithCoords.forEach(station => {
-    if (station.name !== "Start" && station.name !== "Finish") {
-      L.marker([station.coord[1], station.coord[0]])
-        .addTo(map)
-        .bindPopup(`${station.name} (${station.km} km)`);
-    }
-  });
+  const gpxData = await loadGPX("nuts300.gpx");
+  routeLine = L.geoJSON(gpxData, { color: "#f00", weight: 3 }).addTo(map);
 
-  recalculatePlan();
+  addAidStationMarkers();
 }
 
-document.getElementById('recalcBtn').addEventListener('click', recalculatePlan);
-initMap();
+document.addEventListener("DOMContentLoaded", initMap);
