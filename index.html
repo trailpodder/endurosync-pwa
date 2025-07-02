@@ -1,38 +1,62 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
   <title>NUTS 300 Planner</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha512-sA+z0pOULF4MfiD/3zStnE2Upy6EJzoWiiIu3T+PFa7nV8C7r6xK8G1umBwnGpj0oKxY1lgpVH5a4zGH3Xj/gA=="
+    crossorigin=""
+  />
+
   <style>
-    #map { height: 300px; margin-bottom: 1rem; }
-    #controls input { width: 60px; }
-    body { font-family: sans-serif; padding: 1rem; max-width: 800px; margin: auto; }
-    canvas { max-width: 100%; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: sans-serif;
+    }
+
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+
+    #sidebar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 10px;
+      z-index: 1000;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
   </style>
 </head>
 <body>
-  <h2>NUTS 300 Planner</h2>
-
-  <div id="controls">
-    <label>Goal Time (h): <input id="goalTime" type="number" value="96"/></label>
-    <label>Rest Kalmankaltio (h): <input id="rest1" type="number" value="1"/></label>
-    <label>Rest Hetta (h): <input id="rest2" type="number" value="2"/></label>
-    <label>Rest Pallas (h): <input id="rest3" type="number" value="3"/></label>
-    <button id="recalcBtn">Recalculate</button>
+  <div id="sidebar">
+    <h3>NUTS 300 Planner</h3>
+    <p>Aid stations plotted on route map. More planning tools coming soon.</p>
   </div>
-
   <div id="map"></div>
-  <canvas id="paceChart"></canvas>
 
-  <!-- Scripts -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha512-oJ9ks3zPhjCewOp7TnJDxTElkEcOcUmda5gbV9nwh2Z8FFcNn9U4cxI5rs/BcckR9EqhVHd1xEvM+5hA3t5k1g=="
+    crossorigin=""
+  ></script>
+
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-  <!-- Minimal togeojson -->
+  <!-- Minimal browser version of togeojson.js -->
   <script>
-    this.togeojson = (function(){
+    window.togeojson = (function(){
       function attr(x) {
         const o = {};
         if (!x || !x.attributes) return o;
@@ -42,21 +66,26 @@
         }
         return o;
       }
+
       function nodeVal(x) {
         if (!x || !x.firstChild) return '';
         return x.firstChild.nodeValue;
       }
+
       function get(x, tag) {
         return x.getElementsByTagName(tag);
       }
+
       function gpx(doc) {
         const tracks = get(doc, 'trk');
         const features = [];
+
         for (let i = 0; i < tracks.length; i++) {
           const trksegs = get(tracks[i], 'trkseg');
           for (let j = 0; j < trksegs.length; j++) {
             const trkpts = get(trksegs[j], 'trkpt');
             const coords = [];
+
             for (let k = 0; k < trkpts.length; k++) {
               const pt = trkpts[k];
               coords.push([
@@ -65,6 +94,7 @@
                 parseFloat(get(pt, 'ele')[0]?.textContent || 0)
               ]);
             }
+
             features.push({
               type: 'Feature',
               properties: {},
@@ -75,15 +105,18 @@
             });
           }
         }
+
         return {
           type: 'FeatureCollection',
           features: features
         };
       }
+
       return { gpx };
     })();
   </script>
 
+  <!-- Main App -->
   <script src="main.js"></script>
 </body>
 </html>
