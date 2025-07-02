@@ -1,85 +1,112 @@
+let map;
+let elevationChart;
+let routeLine;
+
+const aidStations = [
+  { name: "Start (Njurgulahti)", km: 0, cutoff: "Thu 12:00", lat: 68.2552, lon: 24.7876 },
+  { name: "Kalmankaltio", km: 88, cutoff: "Fri 13:00", lat: 68.4123, lon: 23.5801 },
+  { name: "Hetta", km: 192, cutoff: "Sat 19:00", lat: 68.3839, lon: 23.6333 },
+  { name: "Pallas", km: 256, cutoff: "Sun 11:00", lat: 68.0401, lon: 24.0701 },
+  { name: "Rauhala (water)", km: 277, cutoff: "", lat: 67.9546, lon: 24.2311 },
+  { name: "Pahtavuoma (water)", km: 288, cutoff: "", lat: 67.9017, lon: 24.3749 },
+  { name: "Peurakaltio (water)", km: 301, cutoff: "", lat: 67.8428, lon: 24.4641 },
+  { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Mon 06:00", lat: 67.6410, lon: 24.1466 }
+];
+
+const restTimes = [1, 2, 3]; // Default rest in hours per segment
+
 async function loadGPX(url) {
   const res = await fetch(url);
   const text = await res.text();
   const parser = new DOMParser();
-  const xml = parser.parseFromString(text, 'application/xml');
+  const xml = parser.parseFromString(text, 'text/xml');
   const geojson = togeojson.gpx(xml);
   return geojson;
 }
 
-const aidStations = [
-  { name: "Start (Njurgulahti)", km: 0, lat: 68.3951, lon: 24.5735, cutoff: "Thu 06:00" },
-  { name: "Kalmankaltio", km: 88, lat: 68.3877, lon: 23.5931, cutoff: "Thu 23:00" },
-  { name: "Hetta", km: 192, lat: 68.3837, lon: 23.6342, cutoff: "Sat 00:00" },
-  { name: "Pallas", km: 256, lat: 68.0647, lon: 24.0694, cutoff: "Sat 18:00" },
-  { name: "Rauhala", km: 277, lat: 67.9975, lon: 24.2139, cutoff: "Sun 00:00" },
-  { name: "Pahtavuoma", km: 288, lat: 67.9508, lon: 24.2662, cutoff: "Sun 03:00" },
-  { name: "Peurakaltio", km: 301, lat: 67.8783, lon: 24.2953, cutoff: "Sun 07:00" },
-  { name: "Finish (Äkäslompolo)", km: 326, lat: 67.6306, lon: 24.1491, cutoff: "Sun 12:00" }
-];
+function formatTime(hours) {
+  const totalMinutes = Math.round(hours * 60);
+  const days = Math.floor(totalMinutes / 1440);
+  const hrs = Math.floor((totalMinutes % 1440) / 60);
+  const mins = totalMinutes % 60;
+  return `${days > 0 ? `Day ${days} ` : ''}${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+}
 
-let map, routeLine;
+function estimateArrivalTimes() {
+  let goalHours = parseFloat(document.getElementById("goalTime").value) || 96;
+  let totalDistance = aidStations[aidStations.length - 1].km;
+
+  let pace = (goalHours - restTimes.reduce((a, b) => a + b, 0)) / totalDistance;
+
+  let currentTime = 0;
+  let tableRows = aidStations.map((as, i) => {
+    let arrival = currentTime;
+    let rest = i === 0 ? 0 : (restTimes[i - 1] || 0);
+    let departure = arrival + rest;
+    let dist = i === 0 ? 0 : as.km - aidStations[i - 1].km;
+    currentTime = departure + dist * pace;
+
+    return `
+      <tr>
+        <td>${as.name}</td>
+        <td>${as.km.toFixed(1)} km</td>
+        <td>${formatTime(arrival)}</td>
+        <td>${formatTime(departure)}</td>
+        <td>${as.cutoff}</td>
+      </tr>
+    `;
+  }).join("");
+
+  document.getElementById("paceTableBody").innerHTML = tableRows;
+}
 
 async function initMap() {
-  map = L.map('map').setView([68.1, 24.0], 8);
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18,
+  map = L.map('map').setView([68.0, 24.0], 8);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18
   }).addTo(map);
 
-  const geojson = await loadGPX('nuts300.gpx');
-
+  // Load GPX
+  const geojson = await loadGPX("nuts300.gpx");
   routeLine = L.geoJSON(geojson, {
-    style: { color: 'blue', weight: 3 }
+    style: { color: 'red', weight: 3 }
   }).addTo(map);
 
-  aidStations.forEach(station => {
-    const marker = L.marker([station.lat, station.lon])
-      .addTo(map)
-      .bindPopup(`${station.name}<br>${station.km} km<br>Cutoff: ${station.cutoff}`);
-    if (station.km === 0 || station.km === 326) {
-      marker.setIcon(L.icon({ iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-red.png', iconSize: [25, 41], iconAnchor: [12, 41] }));
+  map.fitBounds(routeLine.getBounds());
+
+  // Add aid station markers
+  aidStations.forEach((as, i) => {
+    L.marker([as.lat, as.lon]).addTo(map).bindPopup(`${as.name}<br>${as.km} km`);
+  });
+
+  // Elevation profile
+  const elevation = geojson.features[0].geometry.coordinates.map(c => c[2]);
+  const labels = geojson.features[0].geometry.coordinates.map((_, i) => i);
+
+  const ctx = document.getElementById('elevationChart').getContext('2d');
+  elevationChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Elevation (m)',
+        data: elevation,
+        borderColor: 'green',
+        borderWidth: 1,
+        pointRadius: 0
+      }]
+    },
+    options: {
+      scales: {
+        x: { display: false },
+        y: { beginAtZero: false }
+      }
     }
   });
 
-  recalculatePlan();
+  estimateArrivalTimes();
 }
 
-function recalculatePlan() {
-  const goalHours = parseFloat(document.getElementById('goalTime').value);
-  const totalDistance = 326;
-  const pace = goalHours / totalDistance;
-
-  let html = `
-    <tr><th>Segment</th><th>Distance (km)</th><th>Pace (h/km)</th><th>Time (hh:mm)</th><th>Arrival</th><th>Cutoff</th></tr>
-  `;
-
-  let totalTime = 0;
-  for (let i = 1; i < aidStations.length; i++) {
-    const prev = aidStations[i - 1];
-    const curr = aidStations[i];
-    const segmentDist = curr.km - prev.km;
-    const segmentTime = segmentDist * pace;
-    totalTime += segmentTime;
-
-    const arrivalHour = 6 + totalTime; // starts Thu 06:00
-    const arrival = new Date(2025, 6, 3, 6, 0); // July 3, 2025 06:00
-    arrival.setHours(arrival.getHours() + totalTime);
-
-    html += `
-      <tr>
-        <td>${prev.name} → ${curr.name}</td>
-        <td>${segmentDist.toFixed(1)}</td>
-        <td>${pace.toFixed(2)}</td>
-        <td>${segmentTime.toFixed(1)}</td>
-        <td>${arrival.toLocaleString('fi-FI', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</td>
-        <td>${curr.cutoff}</td>
-      </tr>
-    `;
-  }
-
-  document.getElementById('pacePlan').innerHTML = html;
-  document.getElementById('summary').innerHTML = `<strong>Estimated Finish Time:</strong> ${(6 + totalTime).toFixed(1)}h from start`;
-}
+document.getElementById("goalTime").addEventListener("input", estimateArrivalTimes);
 
 initMap();
