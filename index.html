@@ -2,46 +2,31 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>NUTS 300 Planner</title>
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   />
   <style>
-    #map {
-      height: 60vh;
-      width: 100%;
-    }
-    #controls {
-      padding: 1em;
-    }
-    .chart-container {
-      height: 200px;
-      width: 100%;
-    }
+    body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
+    #map { height: 70vh; }
+    #controls { padding: 1em; }
+    #pacePlan { width: 100%; border-collapse: collapse; margin-top: 1em; }
+    #pacePlan th, #pacePlan td { border: 1px solid #ccc; padding: 4px 8px; }
   </style>
 </head>
 <body>
-  <h1>NUTS 300 Planner</h1>
   <div id="map"></div>
   <div id="controls">
-    <label>Goal Time (hours): <input type="number" id="goalTime" value="96" /></label><br>
-    <label>Rest Times (hrs):
-      <input type="number" class="rest-time" value="1" />
-      <input type="number" class="rest-time" value="2" />
-      <input type="number" class="rest-time" value="3" />
-    </label><br>
-    <button onclick="savePlan()">Save Plan</button>
-    <button onclick="loadPlan()">Load Plan</button>
-  </div>
-  <div class="chart-container">
-    <canvas id="paceChart"></canvas>
+    <label>Goal Time (hours): <input type="number" id="goalTime" value="96" /></label>
+    <button onclick="recalculatePlan()">Recalculate</button>
+    <div id="summary"></div>
+    <table id="pacePlan"></table>
   </div>
 
-  <!-- Dependencies -->
+  <!-- Script order matters! -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="togeojson.js"></script>
   <script src="main.js"></script>
 </body>
