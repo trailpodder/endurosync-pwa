@@ -1,122 +1,48 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NUTS 300 Planner</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Leaflet CSS -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha512-sA+z0pOULF4MfiD/3zStnE2Upy6EJzoWiiIu3T+PFa7nV8C7r6xK8G1umBwnGpj0oKxY1lgpVH5a4zGH3Xj/gA=="
-    crossorigin=""
   />
-
   <style>
-    html, body {
-      margin: 0;
-      height: 100%;
-      font-family: sans-serif;
-    }
-
     #map {
-      height: 100vh;
+      height: 60vh;
       width: 100%;
     }
-
-    #sidebar {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: white;
-      padding: 10px;
-      z-index: 1000;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    #controls {
+      padding: 1em;
+    }
+    .chart-container {
+      height: 200px;
+      width: 100%;
     }
   </style>
 </head>
 <body>
-  <div id="sidebar">
-    <h3>NUTS 300 Planner</h3>
-    <p>Aid stations plotted on route map. More planning tools coming soon.</p>
-  </div>
+  <h1>NUTS 300 Planner</h1>
   <div id="map"></div>
+  <div id="controls">
+    <label>Goal Time (hours): <input type="number" id="goalTime" value="96" /></label><br>
+    <label>Rest Times (hrs):
+      <input type="number" class="rest-time" value="1" />
+      <input type="number" class="rest-time" value="2" />
+      <input type="number" class="rest-time" value="3" />
+    </label><br>
+    <button onclick="savePlan()">Save Plan</button>
+    <button onclick="loadPlan()">Load Plan</button>
+  </div>
+  <div class="chart-container">
+    <canvas id="paceChart"></canvas>
+  </div>
 
-  <!-- Leaflet JS -->
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha512-oJ9ks3zPhjCewOp7TnJDxTElkEcOcUmda5gbV9nwh2Z8FFcNn9U4cxI5rs/BcckR9EqhVHd1xEvM+5hA3t5k1g=="
-    crossorigin=""
-  ></script>
-
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-  <!-- Minimal browser version of togeojson.js -->
-  <script>
-    window.togeojson = (function(){
-      function attr(x) {
-        const o = {};
-        if (!x || !x.attributes) return o;
-        for (let i = 0; i < x.attributes.length; i++) {
-          const attr = x.attributes[i];
-          o[attr.name] = attr.value;
-        }
-        return o;
-      }
-
-      function nodeVal(x) {
-        if (!x || !x.firstChild) return '';
-        return x.firstChild.nodeValue;
-      }
-
-      function get(x, tag) {
-        return x.getElementsByTagName(tag);
-      }
-
-      function gpx(doc) {
-        const tracks = get(doc, 'trk');
-        const features = [];
-
-        for (let i = 0; i < tracks.length; i++) {
-          const trksegs = get(tracks[i], 'trkseg');
-          for (let j = 0; j < trksegs.length; j++) {
-            const trkpts = get(trksegs[j], 'trkpt');
-            const coords = [];
-
-            for (let k = 0; k < trkpts.length; k++) {
-              const pt = trkpts[k];
-              coords.push([
-                parseFloat(pt.getAttribute('lon')),
-                parseFloat(pt.getAttribute('lat')),
-                parseFloat(get(pt, 'ele')[0]?.textContent || 0)
-              ]);
-            }
-
-            features.push({
-              type: 'Feature',
-              properties: {},
-              geometry: {
-                type: 'LineString',
-                coordinates: coords
-              }
-            });
-          }
-        }
-
-        return {
-          type: 'FeatureCollection',
-          features: features
-        };
-      }
-
-      return { gpx };
-    })();
-  </script>
-
-  <!-- Main App -->
+  <!-- Dependencies -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="togeojson.js"></script>
   <script src="main.js"></script>
 </body>
 </html>
