@@ -1,49 +1,58 @@
-// main.js (updated to fix aid station coordinates and show start/finish markers)
+// main.js – NUTS 300 Planner
 
 let map;
-let routeLine;
-let aidStationMarkers = [];
+let gpxTrack;
 
 const aidStations = [
-  { name: "Start (Njurgulahti)", km: 0, lat: 68.50835, lon: 23.53214, cutoff: null },
-  { name: "Kalmankaltio", km: 88, lat: 68.6503, lon: 23.9714, cutoff: "Sat 14:00" },
-  { name: "Hetta", km: 192, lat: 68.3838, lon: 23.6221, cutoff: "Sun 10:00" },
-  { name: "Pallas", km: 256, lat: 68.0605, lon: 24.0709, cutoff: "Sun 23:00" },
-  { name: "Rauhala (water)", km: 277, lat: 67.9253, lon: 24.1501, cutoff: null },
-  { name: "Pahtavuoma (water)", km: 288, lat: 67.8436, lon: 24.1964, cutoff: null },
-  { name: "Peurakaltio (water)", km: 301, lat: 67.7622, lon: 24.2115, cutoff: null },
-  { name: "Finish (Äkäslompolo)", km: 326, lat: 67.6100, lon: 24.1500, cutoff: "Mon 18:00" }
+  { name: "Start (Njurgulahti)", km: 0, lat: 68.49944, lon: 24.73256 },
+  { name: "Kalmankaltio", km: 88, lat: 68.54495, lon: 23.63578 },
+  { name: "Hetta", km: 192, lat: 68.38358, lon: 23.63176 },
+  { name: "Pallas", km: 256, lat: 68.05935, lon: 24.07093 },
+  { name: "Rauhala (water only)", km: 277, lat: 67.98780, lon: 24.30477 },
+  { name: "Pahtavuoma (water only)", km: 288, lat: 67.93316, lon: 24.41949 },
+  { name: "Peurakaltio (water only)", km: 301, lat: 67.86744, lon: 24.50723 },
+  { name: "Finish (Äkäslompolo)", km: 326, lat: 67.62402, lon: 24.14969 }
 ];
 
 async function loadGPX(url) {
   const response = await fetch(url);
-  const text = await response.text();
+  const gpxText = await response.text();
   const parser = new DOMParser();
-  const xml = parser.parseFromString(text, "application/xml");
-  return togeojson.gpx(xml);
+  const gpxDoc = parser.parseFromString(gpxText, "application/xml");
+  return togeojson.gpx(gpxDoc);
 }
 
-function addAidStationMarkers() {
-  aidStations.forEach((station, index) => {
-    const marker = L.marker([station.lat, station.lon])
-      .addTo(map)
-      .bindPopup(`<b>${station.name}</b><br>KM ${station.km}${station.cutoff ? `<br>Cutoff: ${station.cutoff}` : ""}`);
-    aidStationMarkers.push(marker);
+function initMap() {
+  map = L.map('map').setView([68.1, 24.0], 8);
+
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+}
+
+function plotAidStations() {
+  aidStations.forEach(station => {
+    const marker = L.marker([station.lat, station.lon]).addTo(map);
+    marker.bindPopup(`${station.name}<br>${station.km} km`);
   });
 }
 
-async function initMap() {
-  map = L.map("map").setView([68.4, 23.8], 8);
-
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 18,
-    attribution: '© OpenStreetMap contributors'
+async function plotRoute() {
+  const geojson = await loadGPX("nuts300.gpx");
+  gpxTrack = L.geoJSON(geojson, {
+    style: {
+      color: 'blue',
+      weight: 3
+    }
   }).addTo(map);
 
-  const gpxData = await loadGPX("nuts300.gpx");
-  routeLine = L.geoJSON(gpxData, { color: "#f00", weight: 3 }).addTo(map);
-
-  addAidStationMarkers();
+  map.fitBounds(gpxTrack.getBounds());
 }
 
-document.addEventListener("DOMContentLoaded", initMap);
+async function initPlanner() {
+  initMap();
+  await plotRoute();
+  plotAidStations();
+}
+
+window.onload = initPlanner;
