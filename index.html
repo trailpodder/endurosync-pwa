@@ -2,40 +2,37 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>NUTS 300 Planner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    crossorigin=""
-  />
+  <title>NUTS 300 Planner</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <style>
-    body { font-family: sans-serif; margin: 0; padding: 0; }
+    body { font-family: sans-serif; margin: 0; }
     #map { height: 50vh; }
     #chart { height: 200px; width: 100%; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #ccc; padding: 4px; text-align: center; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+    th, td { border: 1px solid #ccc; padding: 0.5em; text-align: center; }
+    input { width: 60px; }
   </style>
 </head>
 <body>
-  <h2>NUTS 300 Planner</h2>
+  <h1>NUTS 300 Planner</h1>
   <div id="map"></div>
   <canvas id="chart"></canvas>
-  <table id="plannerTable">
+  <table id="pace-table">
     <thead>
       <tr>
         <th>Segment</th>
         <th>Distance (km)</th>
-        <th>Cutoff</th>
-        <th>Rest (h)</th>
         <th>ETA In</th>
         <th>ETA Out</th>
+        <th>Rest (h)</th>
+        <th>Cutoff</th>
       </tr>
     </thead>
     <tbody></tbody>
   </table>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="togeojson.js"></script>
   <script src="main.js"></script>
