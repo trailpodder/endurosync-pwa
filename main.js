@@ -1,114 +1,133 @@
+// main.js
+
+let map;
+let routeLine;
+let elevationData = [];
+let elevationChart;
+
 const aidStations = [
-  { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00", lat: 68.5372, lon: 24.1235, rest: 0 },
-  { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00", lat: 68.3166, lon: 23.6953, rest: 1 },
-  { name: "Hetta", km: 192, cutoff: "Thu 13:00", lat: 68.3832, lon: 23.6150, rest: 2 },
-  { name: "Pallas", km: 256, cutoff: "Fri 13:00", lat: 68.0664, lon: 24.0700, rest: 2 },
-  { name: "Rauhala", km: 277, cutoff: "", lat: 67.9830, lon: 24.1990, rest: 0 },
-  { name: "Pahtavuoma", km: 288, cutoff: "", lat: 67.9380, lon: 24.3050, rest: 0 },
-  { name: "Peurakaltio", km: 301, cutoff: "", lat: 67.8880, lon: 24.3720, rest: 0 },
-  { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00", lat: 67.6223, lon: 24.1476, rest: 0 }
+  { name: "Start (Njurgulahti)", km: 0, lat: 68.47411, lon: 24.73367, cutoff: "Mon 12:00" },
+  { name: "Kalmankaltio", km: 88, lat: 68.47867, lon: 23.90687, cutoff: "Tue 12:00" },
+  { name: "Hetta", km: 192, lat: 68.38395, lon: 23.63358, cutoff: "Thu 13:00" },
+  { name: "Pallas", km: 256, lat: 68.37033, lon: 24.06020, cutoff: "Fri 13:00" },
+  { name: "Rauhala (water)", km: 277, lat: 68.32613, lon: 24.30588, cutoff: "" },
+  { name: "Pahtavuoma (water)", km: 288, lat: 68.29177, lon: 24.42892, cutoff: "" },
+  { name: "Peurakaltio (water)", km: 301, lat: 68.25903, lon: 24.57178, cutoff: "" },
+  { name: "Finish (Äkäslompolo)", km: 326, lat: 67.59184, lon: 24.15078, cutoff: "Sat 18:00" }
 ];
 
-async function loadGPX() {
-  const response = await fetch("nuts300.gpx");
-  const text = await response.text();
-  const parser = new DOMParser();
-  const xml = parser.parseFromString(text, "application/xml");
-  return togeojson.gpx(xml);
+function loadGPX(url) {
+  return fetch(url)
+    .then(res => res.text())
+    .then(str => (new window.DOMParser()).parseFromString(str, "text/xml"))
+    .then(gpx => togeojson.gpx(gpx));
 }
 
-function renderAidStations(map) {
-  aidStations.forEach(station => {
-    L.marker([station.lat, station.lon]).addTo(map)
-      .bindPopup(`${station.name}<br>${station.km} km<br>Cutoff: ${station.cutoff}`);
-  });
+function formatTime(minutes) {
+  const base = new Date("2025-07-14T12:00:00Z");
+  const t = new Date(base.getTime() + minutes * 60000);
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return `${days[t.getUTCDay()]} ${String(t.getUTCHours()).padStart(2, "0")}:${String(t.getUTCMinutes()).padStart(2, "0")}`;
 }
 
-function renderTable() {
-  const tbody = document.querySelector("#plannerTable tbody");
-  tbody.innerHTML = "";
-
-  let currentTime = new Date("2025-08-25T12:00:00"); // Start: Monday 12:00
-  const pace = 5; // 5 km/h base
+function calculateETAs(goalHours, restTimes) {
+  const result = [];
+  const totalDistance = aidStations[aidStations.length - 1].km;
+  let time = 0;
 
   for (let i = 0; i < aidStations.length; i++) {
-    const curr = aidStations[i];
-    const prev = aidStations[i - 1] || { km: 0 };
-    const dist = curr.km - prev.km;
-    const segmentTimeH = dist / pace;
-    const etaIn = new Date(currentTime.getTime() + segmentTimeH * 3600 * 1000);
-    const etaOut = new Date(etaIn.getTime() + curr.rest * 3600 * 1000);
-    currentTime = etaOut;
+    const current = aidStations[i];
+    const prev = aidStations[i - 1];
 
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${curr.name}</td>
-      <td>${dist.toFixed(1)}</td>
-      <td>${curr.cutoff}</td>
-      <td><input type="number" value="${curr.rest}" min="0" max="12" step="0.5" onchange="updateRest(${i}, this.value)" /></td>
-      <td>${etaIn.toLocaleString()}</td>
-      <td>${etaOut.toLocaleString()}</td>
-    `;
-    tbody.appendChild(tr);
+    if (i === 0) {
+      result.push({
+        name: current.name,
+        etaIn: 0,
+        etaOut: 0,
+        cutoff: current.cutoff
+      });
+    } else {
+      const segmentDist = current.km - prev.km;
+      const pace = goalHours * 60 / totalDistance;
+      const segmentTime = pace * segmentDist;
+      const rest = parseInt(restTimes[i - 1]) || 0;
+      time += segmentTime;
+      const etaIn = time;
+      time += rest;
+      const etaOut = time;
+      result.push({
+        name: current.name,
+        etaIn,
+        etaOut,
+        cutoff: current.cutoff
+      });
+    }
   }
+  return result;
 }
 
-function updateRest(index, value) {
-  aidStations[index].rest = parseFloat(value);
-  renderTable();
-}
+function updateTable(etas) {
+  const table = document.getElementById("pace-table");
+  table.innerHTML = "";
+  const header = table.insertRow();
+  ["Aid Station", "ETA In", "ETA Out", "Cutoff", "Rest (h)"].forEach(t => header.insertCell().textContent = t);
 
-function drawElevationChart(coords) {
-  const ctx = document.getElementById("chart").getContext("2d");
-  const dist = [0];
-  const elev = [coords[0][2]];
-  let totalDist = 0;
-
-  for (let i = 1; i < coords.length; i++) {
-    const dx = coords[i][0] - coords[i - 1][0];
-    const dy = coords[i][1] - coords[i - 1][1];
-    const dz = coords[i][2];
-    totalDist += Math.sqrt(dx * dx + dy * dy) * 111; // rough km estimate
-    dist.push(totalDist);
-    elev.push(dz);
-  }
-
-  new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: dist,
-      datasets: [{
-        label: "Elevation (m)",
-        data: elev,
-        borderColor: "blue",
-        fill: false,
-        tension: 0.1
-      }]
-    },
-    options: {
-      scales: {
-        x: { title: { display: true, text: "Distance (km)" } },
-        y: { title: { display: true, text: "Elevation (m)" } }
-      }
+  etas.forEach((row, i) => {
+    const tr = table.insertRow();
+    tr.insertCell().textContent = row.name;
+    tr.insertCell().textContent = formatTime(row.etaIn);
+    tr.insertCell().textContent = formatTime(row.etaOut);
+    tr.insertCell().textContent = row.cutoff;
+    if (i > 0) {
+      const input = document.createElement("input");
+      input.type = "number";
+      input.value = "1";
+      input.min = 0;
+      input.oninput = () => recalculate();
+      tr.insertCell().appendChild(input);
+    } else {
+      tr.insertCell().textContent = "-";
     }
   });
 }
 
-async function init() {
-  const geojson = await loadGPX();
-  const coords = geojson.features[0].geometry.coordinates;
-
-  const map = L.map("map").setView([68.2, 24], 7);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors"
-  }).addTo(map);
-
-  const polyline = coords.map(c => [c[1], c[0]]);
-  L.polyline(polyline, { color: "blue" }).addTo(map);
-
-  renderAidStations(map);
-  renderTable();
-  drawElevationChart(coords);
+function recalculate() {
+  const goalHours = parseInt(document.getElementById("goal-time").value) || 96;
+  const table = document.getElementById("pace-table");
+  const restTimes = [];
+  for (let i = 1; i < table.rows.length; i++) {
+    const input = table.rows[i].cells[4].querySelector("input");
+    restTimes.push(input ? input.value : 0);
+  }
+  const etas = calculateETAs(goalHours, restTimes);
+  updateTable(etas);
 }
 
-init();
+async function initMap() {
+  map = L.map("map").setView([68.3, 24.0], 8);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18
+  }).addTo(map);
+
+  const geojson = await loadGPX("nuts300.gpx");
+  routeLine = L.geoJSON(geojson, {
+    style: { color: "blue" }
+  }).addTo(map);
+  map.fitBounds(routeLine.getBounds());
+
+  aidStations.forEach(aid => {
+    L.marker([aid.lat, aid.lon])
+      .addTo(map)
+      .bindPopup(`<b>${aid.name}</b><br>${aid.km} km<br>Cutoff: ${aid.cutoff || "-"}`);
+  });
+
+  const goalHours = parseInt(document.getElementById("goal-time").value) || 96;
+  const restTimes = aidStations.slice(1).map(() => 1);
+  const etas = calculateETAs(goalHours, restTimes);
+  updateTable(etas);
+}
+
+document.getElementById("goal-time").addEventListener("change", recalculate);
+
+initMap();
