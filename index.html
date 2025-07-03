@@ -2,27 +2,41 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>NUTS 300 Planner</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  />
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
-    #map { height: 70vh; }
-    #controls { padding: 1em; }
-    #pacePlan { width: 100%; border-collapse: collapse; margin-top: 1em; }
-    #pacePlan th, #pacePlan td { border: 1px solid #ccc; padding: 4px 8px; text-align: center; }
+    body { font-family: sans-serif; margin: 0; padding: 0; }
+    #map { height: 50vh; }
+    #chart { height: 200px; width: 100%; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 4px; text-align: center; }
   </style>
 </head>
 <body>
+  <h2>NUTS 300 Planner</h2>
   <div id="map"></div>
-  <div id="controls">
-    <label>Goal Time (hours): <input type="number" id="goalTime" value="90" /></label>
-    <button onclick="recalculatePlan()">Recalculate</button>
-    <div id="summary"></div>
-    <table id="pacePlan"></table>
-  </div>
+  <canvas id="chart"></canvas>
+  <table id="plannerTable">
+    <thead>
+      <tr>
+        <th>Segment</th>
+        <th>Distance (km)</th>
+        <th>Cutoff</th>
+        <th>Rest (h)</th>
+        <th>ETA In</th>
+        <th>ETA Out</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="togeojson.js"></script>
   <script src="main.js"></script>
 </body>
