@@ -1,70 +1,62 @@
-// Minimal browser version of togeojson
-(function(global) {
-  const togeojson = (function(){
-    // Only GPX needed for your case
-    function attr(x) {
-      const o = {};
-      if (!x || !x.attributes) return o;
-      for (let i = 0; i < x.attributes.length; i++) {
-        const attr = x.attributes[i];
-        o[attr.name] = attr.value;
-      }
-      return o;
-    }
+// Minimal standalone version of toGeoJSON.gpx
+// Source: https://github.com/mapbox/togeojson
 
-    function nodeVal(x) {
-      if (!x || !x.firstChild) return '';
-      return x.firstChild.nodeValue;
-    }
+(function() {
+  function get(text, node) {
+    return node.getElementsByTagName(text);
+  }
 
-    function get(x, tag) {
-      return x.getElementsByTagName(tag);
-    }
+  function attr(node, attr) {
+    return node.getAttribute(attr);
+  }
 
-    function coordPair(x) {
-      return [parseFloat(nodeVal(get(x, 'lon')[0] || x)), parseFloat(nodeVal(get(x, 'lat')[0] || x))];
-    }
+  function nodeVal(node) {
+    return node && node.textContent;
+  }
 
-    function gpx(doc) {
-      const tracks = get(doc, 'trk');
-      const features = [];
+  function coordPair(node) {
+    return [parseFloat(nodeVal(get("lon", node)[0])),
+            parseFloat(nodeVal(get("lat", node)[0]))];
+  }
 
-      for (let i = 0; i < tracks.length; i++) {
-        const trksegs = get(tracks[i], 'trkseg');
-        for (let j = 0; j < trksegs.length; j++) {
-          const trkpts = get(trksegs[j], 'trkpt');
-          const coords = [];
+  function parseGPX(gpx) {
+    const trks = get("trk", gpx);
+    const features = [];
 
-          for (let k = 0; k < trkpts.length; k++) {
-            const pt = trkpts[k];
-            coords.push([
-              parseFloat(pt.getAttribute('lon')),
-              parseFloat(pt.getAttribute('lat')),
-              parseFloat(get(pt, 'ele')[0]?.textContent || 0)
-            ]);
-          }
+    for (let i = 0; i < trks.length; i++) {
+      const trksegs = get("trkseg", trks[i]);
+      const coords = [];
 
-          features.push({
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'LineString',
-              coordinates: coords
-            }
-          });
+      for (let j = 0; j < trksegs.length; j++) {
+        const trkpts = get("trkpt", trksegs[j]);
+        for (let k = 0; k < trkpts.length; k++) {
+          const pt = trkpts[k];
+          coords.push([
+            parseFloat(attr(pt, "lon")),
+            parseFloat(attr(pt, "lat"))
+          ]);
         }
       }
 
-      return {
-        type: 'FeatureCollection',
-        features: features
-      };
+      features.push({
+        type: "Feature",
+        geometry: {
+          type: "LineString",
+          coordinates: coords
+        },
+        properties: {}
+      });
     }
 
-    return { gpx };
-  })();
+    return {
+      type: "FeatureCollection",
+      features
+    };
+  }
 
-  // ✅ EXPLICITLY export togeojson globally for browser use
-  global.togeojson = togeojson;
+  const toGeoJSON = {
+    gpx: parseGPX
+  };
 
-})(window);
+  window.toGeoJSON = toGeoJSON;
+})();
