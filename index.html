@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>NUTS300 Planner</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <!-- Favicon -->
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" href="favicon.ico" />
 
   <!-- Leaflet CSS -->
   <link
@@ -17,21 +17,15 @@
 
   <style>
     body {
-      font-family: sans-serif;
       margin: 0;
-      padding: 0;
+      font-family: sans-serif;
     }
     #controls {
       padding: 10px;
       background: #f8f8f8;
-      border-bottom: 1px solid #ccc;
     }
     #map {
       height: 400px;
-    }
-    #chart {
-      height: 200px;
-      padding: 10px;
     }
     table {
       width: 100%;
@@ -50,23 +44,19 @@
 </head>
 <body>
 
-<div id="controls">
-  <label for="goal-time">Goal Finish Time (h): </label>
-  <input type="number" id="goal-time" value="90" min="60" max="126" />
-</div>
+  <div id="controls">
+    <label for="goal-time">Goal Finish Time (h):</label>
+    <input type="number" id="goal-time" value="90" min="60" max="126" />
+  </div>
 
-<div id="map"></div>
+  <div id="map"></div>
 
-<canvas id="chart"></canvas>
+  <table id="pace-table"></table>
 
-<table id="pace-table"></table>
-
-<!-- Dependencies -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="https://unpkg.com/togeojson@0.16.0/togeojson.js"></script>
-
-<!-- Your main script -->
-<script src="main.js"></script>
+  <!-- Order is important: Leaflet, togeojson, then main -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://unpkg.com/@tmcw/togeojson@0.16.0/dist/togeojson.js"></script>
+  <script src="main.js"></script>
 
 </body>
 </html>
