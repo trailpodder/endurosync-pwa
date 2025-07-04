@@ -17,7 +17,7 @@ function loadGPX(url) {
   return fetch(url)
     .then(res => res.text())
     .then(str => (new window.DOMParser()).parseFromString(str, "text/xml"))
-    .then(gpx => togeojson.gpx(gpx));
+    .then(gpx => toGeoJSON.gpx(gpx));
 }
 
 function formatTime(minutes) {
