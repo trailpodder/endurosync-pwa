@@ -1,30 +1,33 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>NUTS 300 Planner</title>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <title>NUTS 300 Planner</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    #map { height: 400px; margin-bottom: 10px; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: 4px; text-align: center; }
+    body { font-family: sans-serif; margin: 0; padding: 0; }
+    #map { height: 50vh; }
+    #controls { padding: 1em; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1em; }
+    th, td { border: 1px solid #ccc; padding: 0.5em; text-align: center; }
+    input[type="number"] { width: 60px; }
   </style>
 </head>
 <body>
-  <h2>NUTS 300 Pacing Planner</h2>
-
-  <label for="goal-time">Goal Time (hours, 40–126):</label>
-  <input id="goal-time" type="number" value="90" min="40" max="126" step="1" />
-
   <div id="map"></div>
+  <div id="controls">
+    <label for="goal-time">Goal Time (hours): </label>
+    <input type="number" id="goal-time" value="90" min="40" max="126" step="1" />
+    <table id="pace-table"></table>
+  </div>
 
-  <table id="pace-table"></table>
+  <!-- Dependencies -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+  <script src="togeojson.js"></script>
 
-  <!-- Scripts -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/@tmcw/togeojson@0.16.0/dist/toGeoJSON.umd.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+  <!-- App logic -->
   <script src="main.js"></script>
 </body>
 </html>
