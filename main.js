@@ -4,16 +4,17 @@ let map;
 let routeLine;
 let elevationData = [];
 let elevationChart;
+let gpxGeojson;
 
 const aidStations = [
-  { name: "Start (Njurgulahti)", km: 0, lat: 68.47411, lon: 24.73367, cutoff: "Mon 12:00" },
-  { name: "Kalmankaltio", km: 88, lat: 68.47867, lon: 23.90687, cutoff: "Tue 12:00" },
-  { name: "Hetta", km: 192, lat: 68.38395, lon: 23.63358, cutoff: "Thu 13:00" },
-  { name: "Pallas", km: 256, lat: 68.37033, lon: 24.06020, cutoff: "Fri 13:00" },
-  { name: "Rauhala (water)", km: 277, lat: 68.32613, lon: 24.30588, cutoff: "" },
-  { name: "Pahtavuoma (water)", km: 288, lat: 68.29177, lon: 24.42892, cutoff: "" },
-  { name: "Peurakaltio (water)", km: 301, lat: 68.25903, lon: 24.57178, cutoff: "" },
-  { name: "Finish (Äkäslompolo)", km: 326, lat: 67.59184, lon: 24.15078, cutoff: "Sat 18:00" }
+  { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00" },
+  { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00" },
+  { name: "Hetta", km: 192, cutoff: "Thu 13:00" },
+  { name: "Pallas", km: 256, cutoff: "Fri 13:00" },
+  { name: "Rauhala (water)", km: 277, cutoff: "" },
+  { name: "Pahtavuoma (water)", km: 288, cutoff: "" },
+  { name: "Peurakaltio (water)", km: 301, cutoff: "" },
+  { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00" }
 ];
 
 function loadGPX(url) {
@@ -103,6 +104,23 @@ function recalculate() {
   updateTable(etas);
 }
 
+function getLatLngAtKm(geojson, targetKm) {
+  let total = 0;
+  const coords = geojson.features[0].geometry.coordinates;
+
+  for (let i = 1; i < coords.length; i++) {
+    const [lon1, lat1] = coords[i - 1];
+    const [lon2, lat2] = coords[i];
+    const segmentKm = turf.distance([lon1, lat1], [lon2, lat2]);
+    total += segmentKm;
+    if (total >= targetKm) {
+      return [(lat1 + lat2) / 2, (lon1 + lon2) / 2];
+    }
+  }
+  const [lonLast, latLast] = coords[coords.length - 1];
+  return [latLast, lonLast];
+}
+
 async function initMap() {
   map = L.map("map").setView([68.3, 24.0], 8);
 
@@ -110,16 +128,17 @@ async function initMap() {
     maxZoom: 18
   }).addTo(map);
 
-  const geojson = await loadGPX("nuts300.gpx");
-  routeLine = L.geoJSON(geojson, {
+  gpxGeojson = await loadGPX("nuts300.gpx");
+  routeLine = L.geoJSON(gpxGeojson, {
     style: { color: "blue" }
   }).addTo(map);
   map.fitBounds(routeLine.getBounds());
 
-  aidStations.forEach(aid => {
-    L.marker([aid.lat, aid.lon])
+  aidStations.forEach(station => {
+    const [lat, lon] = getLatLngAtKm(gpxGeojson, station.km);
+    L.marker([lat, lon])
       .addTo(map)
-      .bindPopup(`<b>${aid.name}</b><br>${aid.km} km<br>Cutoff: ${aid.cutoff || "-"}`);
+      .bindPopup(`<b>${station.name}</b><br>${station.km} km<br>Cutoff: ${station.cutoff || "-"}`);
   });
 
   const goalHours = parseInt(document.getElementById("goal-time").value) || 96;
