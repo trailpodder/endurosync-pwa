@@ -1,9 +1,5 @@
-// main.js
-
 let map;
 let routeLine;
-let elevationData = [];
-let elevationChart;
 let gpxGeojson;
 
 const aidStations = [
@@ -25,7 +21,7 @@ function loadGPX(url) {
 }
 
 function formatTime(minutes) {
-  const base = new Date("2025-07-14T12:00:00Z");
+  const base = new Date("2025-07-14T12:00:00Z"); // Always Mon 12:00
   const t = new Date(base.getTime() + minutes * 60000);
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   return `${days[t.getUTCDay()]} ${String(t.getUTCHours()).padStart(2, "0")}:${String(t.getUTCMinutes()).padStart(2, "0")}`;
@@ -51,7 +47,7 @@ function calculateETAs(goalHours, restTimes) {
       const segmentDist = current.km - prev.km;
       const pace = goalHours * 60 / totalDistance;
       const segmentTime = pace * segmentDist;
-      const rest = parseInt(restTimes[i - 1]) || 0;
+      const rest = parseFloat(restTimes[i - 1]) || 0;
       time += segmentTime;
       const etaIn = time;
       time += rest;
@@ -71,7 +67,8 @@ function updateTable(etas) {
   const table = document.getElementById("pace-table");
   table.innerHTML = "";
   const header = table.insertRow();
-  ["Aid Station", "ETA In", "ETA Out", "Cutoff", "Rest (h)"].forEach(t => header.insertCell().textContent = t);
+  ["Aid Station", "ETA In (race time)", "ETA Out (race time)", "Cutoff", "Rest (h)"]
+    .forEach(t => header.insertCell().textContent = t);
 
   etas.forEach((row, i) => {
     const tr = table.insertRow();
@@ -79,11 +76,14 @@ function updateTable(etas) {
     tr.insertCell().textContent = formatTime(row.etaIn);
     tr.insertCell().textContent = formatTime(row.etaOut);
     tr.insertCell().textContent = row.cutoff;
+
     if (i > 0) {
       const input = document.createElement("input");
       input.type = "number";
-      input.value = "1";
       input.min = 0;
+      input.max = 8;
+      input.step = 0.25;
+      input.value = "1";
       input.oninput = () => recalculate();
       tr.insertCell().appendChild(input);
     } else {
@@ -93,13 +93,17 @@ function updateTable(etas) {
 }
 
 function recalculate() {
-  const goalHours = parseInt(document.getElementById("goal-time").value) || 96;
+  let goalHours = parseInt(document.getElementById("goal-time").value) || 90;
+  goalHours = Math.min(Math.max(goalHours, 40), 126);
+
   const table = document.getElementById("pace-table");
   const restTimes = [];
   for (let i = 1; i < table.rows.length; i++) {
     const input = table.rows[i].cells[4].querySelector("input");
-    restTimes.push(input ? input.value : 0);
+    const value = parseFloat(input?.value) || 0;
+    restTimes.push(Math.min(Math.max(value, 0), 8));
   }
+
   const etas = calculateETAs(goalHours, restTimes);
   updateTable(etas);
 }
@@ -141,7 +145,7 @@ async function initMap() {
       .bindPopup(`<b>${station.name}</b><br>${station.km} km<br>Cutoff: ${station.cutoff || "-"}`);
   });
 
-  const goalHours = parseInt(document.getElementById("goal-time").value) || 96;
+  const goalHours = parseInt(document.getElementById("goal-time").value) || 90;
   const restTimes = aidStations.slice(1).map(() => 1);
   const etas = calculateETAs(goalHours, restTimes);
   updateTable(etas);
