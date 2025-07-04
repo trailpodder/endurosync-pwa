@@ -47,7 +47,7 @@ function calculateETAs(goalHours, restTimes) {
       const segmentDist = current.km - prev.km;
       const pace = goalHours * 60 / totalDistance;
       const segmentTime = pace * segmentDist;
-      const rest = Math.min(Math.max(parseFloat(restTimes[i - 1]) || 0, 0), 8); // Clamp 0–8h
+      const rest = Math.min(Math.max(parseFloat(restTimes[i - 1]) || 0, 0), 8);
       time += segmentTime;
       const etaIn = time;
       time += rest * 60;
@@ -146,4 +146,5 @@ async function initMap() {
 }
 
 document.getElementById("goal-time").addEventListener("change", recalculate);
+
 initMap();
