@@ -1,63 +1,30 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title>NUTS300 Planner</title>
+  <meta charset="utf-8" />
+  <title>NUTS 300 Planner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- Favicon -->
-  <link rel="icon" href="favicon.ico" />
-
-  <!-- Leaflet CSS -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    crossorigin=""
-  />
-
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body {
-      margin: 0;
-      font-family: sans-serif;
-    }
-    #controls {
-      padding: 10px;
-      background: #f8f8f8;
-    }
-    #map {
-      height: 400px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-    th, td {
-      border: 1px solid #ccc;
-      padding: 4px 6px;
-      text-align: center;
-    }
-    input[type="number"] {
-      width: 50px;
-    }
+    #map { height: 400px; margin-bottom: 10px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 4px; text-align: center; }
   </style>
 </head>
 <body>
+  <h2>NUTS 300 Pacing Planner</h2>
 
-  <div id="controls">
-    <label for="goal-time">Goal Finish Time (h):</label>
-    <input type="number" id="goal-time" value="90" min="40" max="126" />
-  </div>
+  <label for="goal-time">Goal Time (hours, 40–126):</label>
+  <input id="goal-time" type="number" value="90" min="40" max="126" step="1" />
 
   <div id="map"></div>
 
   <table id="pace-table"></table>
 
-  <!-- Order is important -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+  <!-- Scripts -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/@tmcw/togeojson@0.16.0/dist/toGeoJSON.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
   <script src="main.js"></script>
-
 </body>
 </html>
