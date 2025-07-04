@@ -17,7 +17,7 @@ function loadGPX(url) {
   return fetch(url)
     .then(res => res.text())
     .then(str => (new DOMParser()).parseFromString(str, "text/xml"))
-    .then(gpx => toGeoJSON.gpx(gpx));
+    .then(gpx => togeojson.gpx(gpx));
 }
 
 function formatTime(minutes) {
@@ -37,29 +37,20 @@ function calculateETAs(goalHours, restTimes) {
     const prev = aidStations[i - 1];
 
     if (i === 0) {
-      result.push({
-        name: current.name,
-        etaIn: 0,
-        etaOut: 0,
-        cutoff: current.cutoff
-      });
+      result.push({ name: current.name, etaIn: 0, etaOut: 0, cutoff: current.cutoff });
     } else {
       const segmentDist = current.km - prev.km;
       const pace = goalHours * 60 / totalDistance;
       const segmentTime = pace * segmentDist;
-      const rest = Math.min(Math.max(parseFloat(restTimes[i - 1]) || 0, 0), 8); // Clamp 0–8h
+      const rest = Math.min(Math.max(parseFloat(restTimes[i - 1]) || 0, 0), 8);
       time += segmentTime;
       const etaIn = time;
       time += rest * 60;
       const etaOut = time;
-      result.push({
-        name: current.name,
-        etaIn,
-        etaOut,
-        cutoff: current.cutoff
-      });
+      result.push({ name: current.name, etaIn, etaOut, cutoff: current.cutoff });
     }
   }
+
   return result;
 }
 
