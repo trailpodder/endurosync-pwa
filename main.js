@@ -1,148 +1,137 @@
-let map;
-let gpxData;
-let aidStations = [
-  { name: "Start", km: 0, cutoff: "Mon 12:00" },
+const aidStations = [
+  { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00" },
   { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00" },
   { name: "Hetta", km: 192, cutoff: "Thu 13:00" },
   { name: "Pallas", km: 256, cutoff: "Fri 13:00" },
-  { name: "Rauhala", km: 277, waterOnly: true },
-  { name: "Pahtavuoma", km: 288, waterOnly: true },
-  { name: "Peurakaltio", km: 301, waterOnly: true },
-  { name: "Finish", km: 326, cutoff: "Sat 18:00" }
+  { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00" },
 ];
 
-async function initMap() {
-  map = L.map("map").setView([68.3, 21.5], 8);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+let gpxGeojson = null;
 
-  const res = await fetch("nuts300.gpx");
-  const gpxText = await res.text();
+async function loadGPX(url) {
+  const res = await fetch(url);
+  const text = await res.text();
   const parser = new DOMParser();
-  const xmlDoc = parser.parseFromString(gpxText, "text/xml");
-  gpxData = toGeoJSON.gpx(xmlDoc);
-
-  const gpxLine = L.geoJSON(gpxData, {
-    style: { color: "blue" }
-  }).addTo(map);
-  map.fitBounds(gpxLine.getBounds());
-
-  aidStations.forEach(station => {
-    const nearest = findNearestPoint(station.km);
-    station.latlng = nearest;
-    if (station.waterOnly) {
-      L.circleMarker(nearest, { radius: 5, color: 'cyan' }).addTo(map)
-        .bindPopup(`${station.name} (${station.km} km, water only)`);
-    } else {
-      L.marker(nearest).addTo(map).bindPopup(`${station.name} (${station.km} km)`);
-    }
-  });
-
-  drawTable();
+  const xml = parser.parseFromString(text, "application/xml");
+  return toGeoJSON.gpx(xml);
 }
 
-function findNearestPoint(targetKm) {
-  let dist = 0;
-  for (let i = 1; i < gpxData.features[0].geometry.coordinates.length; i++) {
-    const prev = gpxData.features[0].geometry.coordinates[i - 1];
-    const curr = gpxData.features[0].geometry.coordinates[i];
-    const d = turf.distance(turf.point(prev), turf.point(curr));
-    dist += d;
-    if (dist * 1000 >= targetKm * 1000) {
-      return [curr[1], curr[0]];
+function getLatLngAtKm(geojson, targetKm) {
+  if (!geojson || !geojson.features || !geojson.features[0]) return [null, null];
+  let total = 0;
+  const coords = geojson.features[0].geometry.coordinates;
+  for (let i = 1; i < coords.length; i++) {
+    const [lon1, lat1] = coords[i - 1];
+    const [lon2, lat2] = coords[i];
+    const segment = turf.distance([lon1, lat1], [lon2, lat2]);
+    total += segment;
+    if (total >= targetKm) {
+      return [(lat1 + lat2) / 2, (lon1 + lon2) / 2];
     }
   }
-  return null;
+  const [lonLast, latLast] = coords[coords.length - 1] || [];
+  return latLast && lonLast ? [latLast, lonLast] : [null, null];
 }
 
-function drawTable() {
-  const table = document.getElementById("pace-table");
-  table.innerHTML = "";
-  const header = `<tr>
-    <th>Station</th><th>Distance (km)</th><th>Cutoff</th>
-    <th>ETA In</th><th>ETA Out</th><th>Rest (h)</th>
-    <th>Section (h)</th><th>Total (h)</th><th>Pace (min/km)</th>
-  </tr>`;
-  table.insertAdjacentHTML("beforeend", header);
+function parseGoalTime(text) {
+  const [day, time] = text.trim().split(" ");
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const dayIndex = days.indexOf(day);
+  if (dayIndex === -1) return null;
+  const [h, m] = time.split(":").map(Number);
+  const base = new Date("2025-07-14T12:00:00"); // Mon 12:00
+  base.setHours(base.getHours() + (dayIndex * 24) + h - 12, m);
+  return base;
+}
 
-  let lastKm = 0;
-  let lastTotal = 0;
-  aidStations.forEach((s, i) => {
-    if (s.waterOnly) return;
-    const next = aidStations.find((a, j) => j > i && !a.waterOnly);
+function formatTime(date) {
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const d = days[date.getDay()];
+  const h = date.getHours().toString().padStart(2, "0");
+  const m = date.getMinutes().toString().padStart(2, "0");
+  return `${d} ${h}:${m}`;
+}
 
-    let etaIn = s.etaIn || "";
-    let etaOut = s.etaOut || "";
-    let rest = "";
-    let section = "";
-    let total = "";
-    let pace = "";
+function minutesDiff(d1, d2) {
+  return (d2 - d1) / 60000;
+}
 
-    if (i === 0) {
-      etaOut = etaOut || "Mon 12:00";
-      total = 0;
-    } else if (etaIn && etaOut) {
-      const sectionHours = parseTimeDiff(etaIn, etaOut);
-      const totalHours = parseTimeDiff("Mon 12:00", etaOut);
-      const dist = s.km - lastKm;
-      pace = (sectionHours * 60 / dist).toFixed(1);
-      section = sectionHours;
-      total = totalHours;
-      rest = parseTimeDiff(etaIn, etaOut);
+function updatePaceTable(goalTime) {
+  const tbody = document.querySelector("#paceTable tbody");
+  tbody.innerHTML = "";
+  const rows = [];
+
+  const restTimes = [0, 60, 120, 180, 0]; // in minutes (Start, Kalmankaltio, Hetta, Pallas, Finish)
+  const distances = aidStations.map(s => s.km);
+  const sectionDists = distances.map((km, i) => i === 0 ? 0 : km - distances[i - 1]);
+
+  const finishTime = goalTime;
+  const totalMovingMin = minutesDiff(new Date("2025-07-14T12:00:00"), finishTime) - restTimes.reduce((a, b) => a + b, 0);
+
+  const sectionTimes = sectionDists.map((d, i) => i === 0 ? 0 : d / (totalMovingMin / 60 / (distances[distances.length - 1])) * 60);
+
+  let eta = new Date("2025-07-14T12:00:00"); // Start time
+  let elapsed = 0;
+
+  for (let i = 0; i < aidStations.length; i++) {
+    const row = document.createElement("tr");
+    const seg = `${aidStations[i - 1]?.name.split(" ")[0] || "Start"} → ${aidStations[i].name.split(" ")[0]}`;
+
+    const etaIn = new Date(eta);
+    let moveMin = sectionTimes[i] || 0;
+    let restMin = restTimes[i] || 0;
+
+    let etaOut = new Date(etaIn.getTime() + (moveMin + restMin) * 60000);
+    let elapsedThis = minutesDiff(new Date("2025-07-14T12:00:00"), etaOut);
+
+    const cutoff = aidStations[i].cutoff;
+    const cutoffDT = parseGoalTime(cutoff);
+
+    const dist = sectionDists[i] || 0;
+    const pace = dist ? (moveMin / dist).toFixed(1) : "-";
+
+    row.innerHTML = `
+      <td>${seg}</td>
+      <td>${dist.toFixed(1)}</td>
+      <td>${i === 0 ? "-" : formatTime(etaIn)}</td>
+      <td style="color:${etaOut > cutoffDT ? 'red' : 'inherit'}">${i === aidStations.length - 1 ? "-" : formatTime(etaOut)}</td>
+      <td>${cutoff}</td>
+      <td>${moveMin.toFixed(0)} min</td>
+      <td>${Math.round(elapsedThis)} min</td>
+      <td>${pace} min/km</td>
+    `;
+    tbody.appendChild(row);
+
+    eta = new Date(etaOut);
+  }
+}
+
+async function initMap() {
+  gpxGeojson = await loadGPX("nuts300.gpx");
+
+  const map = L.map("map").setView([68.5, 21], 8);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+  L.geoJSON(gpxGeojson).addTo(map);
+
+  aidStations.forEach(station => {
+    const [lat, lon] = getLatLngAtKm(gpxGeojson, station.km);
+    if (lat && lon) {
+      L.marker([lat, lon]).addTo(map)
+        .bindPopup(`${station.name}<br>${station.km} km<br>Cutoff: ${station.cutoff}`);
     }
-
-    const row = `<tr>
-      <td>${s.name}</td><td>${s.km}</td><td>${s.cutoff || ""}</td>
-      <td><input data-station="${s.name}" data-type="etaIn" value="${etaIn}"></td>
-      <td><input data-station="${s.name}" data-type="etaOut" value="${etaOut}"></td>
-      <td>${rest}</td><td>${section}</td><td>${total}</td><td>${pace}</td>
-    </tr>`;
-    table.insertAdjacentHTML("beforeend", row);
-
-    lastKm = s.km;
-    lastTotal = total;
   });
 
-  document.querySelectorAll("#pace-table input").forEach(input => {
-    input.addEventListener("change", e => {
-      const name = input.dataset.station;
-      const type = input.dataset.type;
-      const value = input.value;
-      const s = aidStations.find(st => st.name === name);
-      s[type] = value;
-      drawTable();
-    });
-  });
-}
+  const input = document.getElementById("goalTimeInput");
+  const button = document.getElementById("applyGoal");
 
-function parseTimeDiff(startStr, endStr) {
-  const days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-  const [sDay, sTime] = startStr.split(" ");
-  const [eDay, eTime] = endStr.split(" ");
-  const sIdx = days.indexOf(sDay);
-  const eIdx = days.indexOf(eDay);
-  const [sH,sM] = sTime.split(":").map(Number);
-  const [eH,eM] = eTime.split(":").map(Number);
-  let diff = (eIdx - sIdx) * 24 + (eH - sH) + (eM - sM)/60;
-  return Math.round(diff * 100) / 100;
-}
-
-function applyGoalTime() {
-  const goal = document.getElementById("goal-time").value; // e.g. "Fri 11:00"
-  const plan = [
-    { name: "Start", etaOut: "Mon 12:00" },
-    { name: "Kalmankaltio", etaIn: "Tue 06:00", etaOut: "Tue 07:00" },
-    { name: "Hetta", etaIn: "Wed 13:00", etaOut: "Wed 15:00" },
-    { name: "Pallas", etaIn: "Thu 10:00", etaOut: "Thu 13:00" },
-    { name: "Finish", etaIn: goal }
-  ];
-  plan.forEach(p => {
-    const s = aidStations.find(a => a.name === p.name);
-    if (s) {
-      s.etaIn = p.etaIn;
-      s.etaOut = p.etaOut;
-    }
+  button.addEventListener("click", () => {
+    const goal = parseGoalTime(input.value);
+    if (goal) updatePaceTable(goal);
+    else alert("Invalid time. Use format: Fri 11:00");
   });
-  drawTable();
+
+  updatePaceTable(parseGoalTime(input.value));
 }
 
 initMap();
