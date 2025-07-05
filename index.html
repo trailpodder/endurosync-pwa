@@ -2,25 +2,25 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NUTS 300 Planner</title>
+  <link rel="stylesheet" href="style.css" />
   <link rel="icon" href="favicon.ico" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <style>
-    #map { height: 400px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 1em; }
-    th, td { border: 1px solid #ccc; padding: 4px; text-align: center; }
-    input { width: 80px; text-align: center; }
-  </style>
+  <script src="togeojson.js"></script>
 </head>
 <body>
-  <h1>NUTS 300 Pace Planner</h1>
-  <div>
-    Goal Finish Time: <input id="goalTime" value="Fri 11:00" />
-    <span id="goalTotal">(95:00 h)</span>
-  </div>
-  <div id="map"></div>
-  <table id="paceTable">
+  <h1>NUTS 300 Pacing Planner</h1>
+  <label>
+    Goal Finish Time (hh:mm Fri):
+    <input type="time" id="goalTimeInput" value="11:00" />
+  </label>
+  <button id="calculateBtn">Calculate</button>
+
+  <div id="map" style="height: 400px; margin-top: 1em"></div>
+
+  <table id="plannerTable">
     <thead>
       <tr>
         <th>Segment</th>
@@ -36,8 +36,9 @@
     </thead>
     <tbody></tbody>
   </table>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="togeojson.js"></script>
+
+  <div id="goalOutput" style="margin-top: 1em; font-weight: bold"></div>
+
   <script src="main.js"></script>
 </body>
 </html>
