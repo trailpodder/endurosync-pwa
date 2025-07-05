@@ -1,140 +1,148 @@
-// main.js
 let map;
-let routeLine;
-let gpxGeojson;
-
-const aidStations = [
-  { name: "Start (Njurgulahti)", km: 0, cutoff: "Mon 12:00", pacing: true },
-  { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00", pacing: true },
-  { name: "Hetta", km: 192, cutoff: "Thu 13:00", pacing: true },
-  { name: "Pallas", km: 256, cutoff: "Fri 13:00", pacing: true },
-  { name: "Rauhala (water)", km: 277, cutoff: "", pacing: false },
-  { name: "Pahtavuoma (water)", km: 288, cutoff: "", pacing: false },
-  { name: "Peurakaltio (water)", km: 301, cutoff: "", pacing: false },
-  { name: "Finish (Äkäslompolo)", km: 326, cutoff: "Sat 18:00", pacing: true }
+let gpxData;
+let aidStations = [
+  { name: "Start", km: 0, cutoff: "Mon 12:00" },
+  { name: "Kalmankaltio", km: 88, cutoff: "Tue 12:00" },
+  { name: "Hetta", km: 192, cutoff: "Thu 13:00" },
+  { name: "Pallas", km: 256, cutoff: "Fri 13:00" },
+  { name: "Rauhala", km: 277, waterOnly: true },
+  { name: "Pahtavuoma", km: 288, waterOnly: true },
+  { name: "Peurakaltio", km: 301, waterOnly: true },
+  { name: "Finish", km: 326, cutoff: "Sat 18:00" }
 ];
 
-function formatTime(minutes) {
-  const base = new Date("2025-07-14T12:00:00Z");
-  const t = new Date(base.getTime() + minutes * 60000);
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  return `${days[t.getUTCDay()]} ${String(t.getUTCHours()).padStart(2, "0")}:${String(t.getUTCMinutes()).padStart(2, "0")}`;
+async function initMap() {
+  map = L.map("map").setView([68.3, 21.5], 8);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+  const res = await fetch("nuts300.gpx");
+  const gpxText = await res.text();
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(gpxText, "text/xml");
+  gpxData = toGeoJSON.gpx(xmlDoc);
+
+  const gpxLine = L.geoJSON(gpxData, {
+    style: { color: "blue" }
+  }).addTo(map);
+  map.fitBounds(gpxLine.getBounds());
+
+  aidStations.forEach(station => {
+    const nearest = findNearestPoint(station.km);
+    station.latlng = nearest;
+    if (station.waterOnly) {
+      L.circleMarker(nearest, { radius: 5, color: 'cyan' }).addTo(map)
+        .bindPopup(`${station.name} (${station.km} km, water only)`);
+    } else {
+      L.marker(nearest).addTo(map).bindPopup(`${station.name} (${station.km} km)`);
+    }
+  });
+
+  drawTable();
 }
 
-function parseCutoff(cutoff) {
-  if (!cutoff) return Infinity;
-  const [day, time] = cutoff.split(" ");
-  const [hour, min] = time.split(":").map(Number);
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const dayOffset = (days.indexOf(day) - 1 + 7) % 7;
-  return dayOffset * 1440 + hour * 60 + min;
-}
-
-function parseTimeInput(str) {
-  if (!str) return null;
-  const [day, hm] = str.trim().split(" ");
-  const [h, m] = hm.split(":").map(Number);
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const dayOffset = (days.indexOf(day) - 1 + 7) % 7;
-  return dayOffset * 1440 + h * 60 + m;
-}
-
-function loadGPX(url) {
-  return fetch(url)
-    .then(res => res.text())
-    .then(str => (new DOMParser()).parseFromString(str, "application/xml"))
-    .then(data => toGeoJSON.gpx(data));
-}
-
-function getLatLngAtKm(geojson, targetKm) {
-  let total = 0;
-  const coords = geojson.features[0].geometry.coordinates;
-  for (let i = 1; i < coords.length; i++) {
-    const [lon1, lat1] = coords[i - 1];
-    const [lon2, lat2] = coords[i];
-    const dist = turf.distance([lon1, lat1], [lon2, lat2]);
-    total += dist;
-    if (total >= targetKm) return [(lat1 + lat2) / 2, (lon1 + lon2) / 2];
+function findNearestPoint(targetKm) {
+  let dist = 0;
+  for (let i = 1; i < gpxData.features[0].geometry.coordinates.length; i++) {
+    const prev = gpxData.features[0].geometry.coordinates[i - 1];
+    const curr = gpxData.features[0].geometry.coordinates[i];
+    const d = turf.distance(turf.point(prev), turf.point(curr));
+    dist += d;
+    if (dist * 1000 >= targetKm * 1000) {
+      return [curr[1], curr[0]];
+    }
   }
-  return coords.length ? [coords.at(-1)[1], coords.at(-1)[0]] : [0, 0];
+  return null;
 }
 
-function calculateETAs(goalHours, etaIns, etaOuts) {
-  const pacingStations = aidStations.filter(s => s.pacing);
-  const etas = [];
-  for (let i = 0; i < pacingStations.length; i++) {
-    const etaIn = parseTimeInput(etaIns[i]) ?? (i === 0 ? 0 : etas[i - 1].etaOut);
-    const etaOut = parseTimeInput(etaOuts[i]) ?? etaIn;
-    const sectionTime = i === 0 ? 0 : etaIn - etas[i - 1].etaOut;
-    const pace = i === 0 ? 0 : sectionTime / (pacingStations[i].km - pacingStations[i - 1].km);
-    const totalElapsed = etaOut;
-    const rest = etaOut - etaIn;
-    const cutoff = parseCutoff(pacingStations[i].cutoff);
-    etas.push({
-      name: pacingStations[i].name,
-      etaIn, etaOut, sectionTime, totalElapsed, pace, rest, cutoff,
-      exceedsCutoff: etaOut > cutoff
-    });
-  }
-  return etas;
-}
-
-function updateTable(etas) {
+function drawTable() {
   const table = document.getElementById("pace-table");
   table.innerHTML = "";
-  const header = table.insertRow();
-  ["Aid Station", "ETA In", "ETA Out", "Cutoff", "Section Time", "Total Time", "Pace (min/km)", "Rest (min)"].forEach(h => header.insertCell().textContent = h);
-  etas.forEach((e, i) => {
-    const row = table.insertRow();
-    row.insertCell().textContent = e.name;
-    const inCell = row.insertCell();
-    const inInput = document.createElement("input");
-    inInput.value = formatTime(e.etaIn);
-    inInput.onchange = recalculate;
-    inCell.appendChild(inInput);
-    const outCell = row.insertCell();
-    const outInput = document.createElement("input");
-    outInput.value = formatTime(e.etaOut);
-    outInput.onchange = recalculate;
-    outCell.appendChild(outInput);
-    row.insertCell().textContent = aidStations.find(s => s.name === e.name).cutoff;
-    row.insertCell().textContent = e.sectionTime.toFixed(1);
-    row.insertCell().textContent = e.totalElapsed.toFixed(1);
-    row.insertCell().textContent = e.pace ? (60 / e.pace).toFixed(2) : "-";
-    row.insertCell().textContent = e.rest.toFixed(0);
-    if (e.exceedsCutoff) row.style.backgroundColor = "#fdd";
+  const header = `<tr>
+    <th>Station</th><th>Distance (km)</th><th>Cutoff</th>
+    <th>ETA In</th><th>ETA Out</th><th>Rest (h)</th>
+    <th>Section (h)</th><th>Total (h)</th><th>Pace (min/km)</th>
+  </tr>`;
+  table.insertAdjacentHTML("beforeend", header);
+
+  let lastKm = 0;
+  let lastTotal = 0;
+  aidStations.forEach((s, i) => {
+    if (s.waterOnly) return;
+    const next = aidStations.find((a, j) => j > i && !a.waterOnly);
+
+    let etaIn = s.etaIn || "";
+    let etaOut = s.etaOut || "";
+    let rest = "";
+    let section = "";
+    let total = "";
+    let pace = "";
+
+    if (i === 0) {
+      etaOut = etaOut || "Mon 12:00";
+      total = 0;
+    } else if (etaIn && etaOut) {
+      const sectionHours = parseTimeDiff(etaIn, etaOut);
+      const totalHours = parseTimeDiff("Mon 12:00", etaOut);
+      const dist = s.km - lastKm;
+      pace = (sectionHours * 60 / dist).toFixed(1);
+      section = sectionHours;
+      total = totalHours;
+      rest = parseTimeDiff(etaIn, etaOut);
+    }
+
+    const row = `<tr>
+      <td>${s.name}</td><td>${s.km}</td><td>${s.cutoff || ""}</td>
+      <td><input data-station="${s.name}" data-type="etaIn" value="${etaIn}"></td>
+      <td><input data-station="${s.name}" data-type="etaOut" value="${etaOut}"></td>
+      <td>${rest}</td><td>${section}</td><td>${total}</td><td>${pace}</td>
+    </tr>`;
+    table.insertAdjacentHTML("beforeend", row);
+
+    lastKm = s.km;
+    lastTotal = total;
+  });
+
+  document.querySelectorAll("#pace-table input").forEach(input => {
+    input.addEventListener("change", e => {
+      const name = input.dataset.station;
+      const type = input.dataset.type;
+      const value = input.value;
+      const s = aidStations.find(st => st.name === name);
+      s[type] = value;
+      drawTable();
+    });
   });
 }
 
-function recalculate() {
-  const rows = document.getElementById("pace-table").rows;
-  const etaIns = [], etaOuts = [];
-  for (let i = 1; i < rows.length; i++) {
-    etaIns.push(rows[i].cells[1].querySelector("input").value);
-    etaOuts.push(rows[i].cells[2].querySelector("input").value);
-  }
-  const goal = parseFloat(document.getElementById("goal-time").value) || 90;
-  const etas = calculateETAs(goal, etaIns, etaOuts);
-  updateTable(etas);
+function parseTimeDiff(startStr, endStr) {
+  const days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const [sDay, sTime] = startStr.split(" ");
+  const [eDay, eTime] = endStr.split(" ");
+  const sIdx = days.indexOf(sDay);
+  const eIdx = days.indexOf(eDay);
+  const [sH,sM] = sTime.split(":").map(Number);
+  const [eH,eM] = eTime.split(":").map(Number);
+  let diff = (eIdx - sIdx) * 24 + (eH - sH) + (eM - sM)/60;
+  return Math.round(diff * 100) / 100;
 }
 
-document.getElementById("goal-time").addEventListener("change", recalculate);
-
-async function initMap() {
-  map = L.map("map").setView([68.3, 24.0], 8);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18 }).addTo(map);
-  gpxGeojson = await loadGPX("nuts300.gpx");
-  routeLine = L.geoJSON(gpxGeojson, { style: { color: "blue" } }).addTo(map);
-  map.fitBounds(routeLine.getBounds());
-  aidStations.forEach(s => {
-    const [lat, lon] = getLatLngAtKm(gpxGeojson, s.km);
-    L.marker([lat, lon]).addTo(map).bindPopup(`${s.name}<br>${s.km} km<br>Cutoff: ${s.cutoff || "-"}`);
+function applyGoalTime() {
+  const goal = document.getElementById("goal-time").value; // e.g. "Fri 11:00"
+  const plan = [
+    { name: "Start", etaOut: "Mon 12:00" },
+    { name: "Kalmankaltio", etaIn: "Tue 06:00", etaOut: "Tue 07:00" },
+    { name: "Hetta", etaIn: "Wed 13:00", etaOut: "Wed 15:00" },
+    { name: "Pallas", etaIn: "Thu 10:00", etaOut: "Thu 13:00" },
+    { name: "Finish", etaIn: goal }
+  ];
+  plan.forEach(p => {
+    const s = aidStations.find(a => a.name === p.name);
+    if (s) {
+      s.etaIn = p.etaIn;
+      s.etaOut = p.etaOut;
+    }
   });
-  const pacingStations = aidStations.filter(s => s.pacing);
-  const etaIns = pacingStations.map((_, i) => formatTime(i * 1000));
-  const etaOuts = pacingStations.map((_, i) => formatTime(i * 1000 + 60));
-  const etas = calculateETAs(90, etaIns, etaOuts);
-  updateTable(etas);
+  drawTable();
 }
 
 initMap();
