@@ -1,22 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>NUTS 300 Planner</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    #map { height: 400px; margin-bottom: 10px; }
-    table { border-collapse: collapse; width: 100%; font-family: sans-serif; }
+    body { font-family: sans-serif; margin: 0; }
+    #map { height: 400px; }
+    table { border-collapse: collapse; width: 100%; }
     th, td { border: 1px solid #ccc; padding: 4px 6px; text-align: center; }
-    input { width: 100px; }
+    input[type="time"] { width: 80px; }
+    .unacceptable { background-color: #fdd; }
   </style>
 </head>
 <body>
-  <h2>NUTS 300 Planner</h2>
-  <label>Goal Finish Time (e.g. "Fri 11:00"): <input type="text" id="goalTimeInput" value="Fri 11:00"></label>
-  <button id="applyGoal">Apply Goal</button>
+  <h1>NUTS 300 Pacing Planner</h1>
+
+  <label for="goal-time">Goal Finish Time (e.g., Fri 11:00):</label>
+  <input type="text" id="goal-time" value="Fri 11:00" />
+
+  <p><strong>Goal: <span id="goal-summary">95:00 h Fri 11:00</span></strong></p>
+
   <div id="map"></div>
-  <table id="paceTable">
+  <canvas id="elevation-chart" width="800" height="200"></canvas>
+
+  <table id="pacing-table">
     <thead>
       <tr>
         <th>Segment</th>
@@ -24,15 +33,16 @@
         <th>ETA In</th>
         <th>ETA Out</th>
         <th>Cutoff</th>
+        <th>Rest Time</th>
         <th>Section Time</th>
         <th>Total Elapsed</th>
-        <th>Pace (min/km)</th>
+        <th>Pace (km/h)</th>
       </tr>
     </thead>
     <tbody></tbody>
   </table>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="togeojson.js"></script>
   <script src="main.js"></script>
 </body>
