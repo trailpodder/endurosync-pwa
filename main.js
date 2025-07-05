@@ -1,115 +1,161 @@
+let map;
+let gpxUrl = 'nuts300.gpx';
+
 const aidStations = [
-  { name: "Start", km: 0, lat: 68.5946, lon: 23.9347, cutoff: "Mon 12:00" },
-  { name: "Kalmankaltio", km: 88, lat: 68.3783, lon: 24.2073, cutoff: "Tue 12:00" },
-  { name: "Hetta", km: 192, lat: 68.3832, lon: 23.6332, cutoff: "Thu 13:00" },
-  { name: "Pallas", km: 256, lat: 68.0579, lon: 24.0704, cutoff: "Fri 13:00" },
-  { name: "Rauhala", km: 277, lat: 67.9734, lon: 24.2030, waterOnly: true },
-  { name: "Pahtavuoma", km: 288, lat: 67.9398, lon: 24.2874, waterOnly: true },
-  { name: "Peurakaltio", km: 301, lat: 67.8691, lon: 24.2996, waterOnly: true },
-  { name: "Finish", km: 326, lat: 67.6061, lon: 24.1522, cutoff: "Sat 18:00" }
+  { name: 'Start (Njurgulahti)', km: 0, cutoff: 'Mon 12:00', lat: 68.47115, lon: 24.84449 },
+  { name: 'Kalmankaltio', km: 88, cutoff: 'Tue 12:00', lat: 68.38303, lon: 23.66539 },
+  { name: 'Hetta', km: 192, cutoff: 'Thu 13:00', lat: 68.38372, lon: 23.62737 },
+  { name: 'Pallas', km: 256, cutoff: 'Fri 13:00', lat: 68.36449, lon: 24.03721 },
+  { name: 'Rauhala (water)', km: 277, lat: 68.32420, lon: 24.26421 },
+  { name: 'Pahtavuoma (water)', km: 288, lat: 68.28021, lon: 24.38163 },
+  { name: 'Peurakaltio (water)', km: 301, lat: 68.21952, lon: 24.55385 },
+  { name: 'Finish (Äkäslompolo)', km: 326, cutoff: 'Sat 18:00', lat: 67.61469, lon: 24.14971 }
 ];
 
-const defaultSchedule = [
-  { etaIn: "", etaOut: "Mon 12:00", rest: "" },
-  { etaIn: "Tue 06:00", etaOut: "Tue 07:00", rest: "01:00" },
-  { etaIn: "Wed 13:00", etaOut: "Wed 15:00", rest: "02:00" },
-  { etaIn: "Thu 10:00", etaOut: "Thu 13:00", rest: "03:00" },
-  { etaIn: "Fri 11:00", etaOut: "", rest: "" }
+const tableStations = [
+  { name: 'Start (Njurgulahti)', km: 0, etaIn: '-', etaOut: 'Mon 12:00', rest: '-' },
+  { name: 'Kalmankaltio', km: 88, etaIn: 'Tue 06:00', etaOut: 'Tue 07:00', rest: '01:00' },
+  { name: 'Hetta', km: 192, etaIn: 'Wed 13:00', etaOut: 'Wed 15:00', rest: '02:00' },
+  { name: 'Pallas', km: 256, etaIn: 'Thu 10:00', etaOut: 'Thu 13:00', rest: '03:00' },
+  { name: 'Finish (Äkäslompolo)', km: 326, etaIn: 'Fri 11:00', etaOut: '-', rest: '-' }
 ];
 
-function parseTime(str) {
-  const [day, time] = str.split(" ");
-  const [h, m] = time.split(":").map(Number);
-  const base = new Date("2025-07-14T12:00:00"); // Mon 12:00
+function parseTimeStr(str) {
+  if (str === '-') return null;
+  const [day, time] = str.split(' ');
   const dayOffsets = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5 };
-  base.setHours(12 + 24 * (dayOffsets[day] || 0)); // adjust to start
-  return new Date(base.getTime() - (12 * 60 * 60 * 1000) + h * 3600000 + m * 60000);
+  const [h, m] = time.split(':').map(Number);
+  return (dayOffsets[day] * 24 + h) * 60 + m;
 }
 
-function formatTime(date) {
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const d = new Date(date);
-  const day = days[d.getDay()];
-  const h = String(d.getHours()).padStart(2, "0");
-  const m = String(d.getMinutes()).padStart(2, "0");
-  return `${day} ${h}:${m}`;
+function parseHM(str) {
+  if (str === '-' || !str.includes(':')) return 0;
+  const [h, m] = str.split(':').map(Number);
+  return h * 60 + m;
 }
 
-function hoursBetween(start, end) {
-  return (end - start) / 3600000;
+function minsToDayTime(mins) {
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const day = dayNames[Math.floor(mins / 1440)];
+  const hh = String(Math.floor((mins % 1440) / 60)).padStart(2, '0');
+  const mm = String(mins % 60).padStart(2, '0');
+  return `${day} ${hh}:${mm}`;
+}
+
+function minsToHM(mins) {
+  const hh = String(Math.floor(mins / 60)).padStart(2, '0');
+  const mm = String(mins % 60).padStart(2, '0');
+  return `${hh}:${mm}`;
 }
 
 function updateTable() {
-  const tbody = document.querySelector("#paceTable tbody");
-  tbody.innerHTML = "";
+  const tbody = document.querySelector('#plannerTable tbody');
+  tbody.innerHTML = '';
 
-  let totalElapsed = 0;
-  let finishTime = parseTime(defaultSchedule.at(-1).etaIn);
-  const startTime = parseTime("Mon 12:00");
+  let elapsed = 0;
+  let goalMins = 0;
 
-  aidStations.forEach((s, i) => {
-    if (s.waterOnly) return;
+  for (let i = 0; i < tableStations.length; i++) {
+    const row = document.createElement('tr');
+    const station = tableStations[i];
 
-    const row = document.createElement("tr");
-    const sched = defaultSchedule[i];
-    const next = aidStations[i + 1];
-    const prevKm = aidStations[i - 1]?.km ?? 0;
+    const dist = station.km;
+    const nextDist = i < tableStations.length - 1 ? tableStations[i + 1].km : dist;
+    const sectionDist = nextDist - dist;
 
-    const etaIn = sched.etaIn ? parseTime(sched.etaIn) : null;
-    const etaOut = sched.etaOut ? parseTime(sched.etaOut) : null;
+    const etaInStr = station.etaIn;
+    const etaOutStr = station.etaOut;
+    const etaInMins = parseTimeStr(etaInStr);
+    const etaOutMins = parseTimeStr(etaOutStr);
+    const restMins = parseHM(station.rest);
 
     let sectionTime = 0;
-    if (i > 0 && sched.etaIn) {
-      const prevEtaOut = parseTime(defaultSchedule[i - 1].etaOut);
-      sectionTime = hoursBetween(prevEtaOut, etaIn);
-      totalElapsed += sectionTime;
+    if (i > 0 && etaInMins !== null && parseTimeStr(tableStations[i - 1].etaOut) !== null) {
+      sectionTime = etaInMins - parseTimeStr(tableStations[i - 1].etaOut);
     }
 
-    if (sched.rest) {
-      const [hr, min] = sched.rest.split(":").map(Number);
-      totalElapsed += hr + (min / 60);
+    if (etaOutMins !== null && parseTimeStr(tableStations[0].etaOut) !== null) {
+      elapsed = etaOutMins - parseTimeStr(tableStations[0].etaOut);
     }
 
-    const pace = i > 0
-      ? ((s.km - prevKm) / sectionTime).toFixed(2)
-      : "-";
+    if (i === tableStations.length - 1 && etaInMins !== null) {
+      goalMins = etaInMins - parseTimeStr(tableStations[0].etaOut);
+    }
 
-    row.innerHTML = `
-      <td>${s.name}</td>
-      <td>${i === 0 ? "-" : s.km - prevKm}</td>
-      <td><input value="${sched.etaIn || "-"}"></td>
-      <td><input value="${sched.etaOut || "-"}"></td>
-      <td>${sched.rest || "-"}</td>
-      <td>${i === 0 ? "-" : `${Math.floor(sectionTime).toString().padStart(2, "0")}:${String(Math.round((sectionTime % 1) * 60)).padStart(2, "0")}`}</td>
-      <td>${`${Math.floor(totalElapsed).toString().padStart(2, "0")}:${String(Math.round((totalElapsed % 1) * 60)).padStart(2, "0")}`}</td>
-      <td>${pace}</td>
-      <td>${s.cutoff || "-"}</td>
-    `;
+    const pace = sectionTime && sectionDist ? (sectionDist / (sectionTime / 60)).toFixed(2) : '-';
+
+    const cells = [
+      station.name,
+      sectionDist || '-',
+      etaInStr,
+      etaOutStr,
+      station.rest,
+      i === 0 ? '-' : minsToHM(sectionTime),
+      minsToHM(elapsed),
+      pace === '-' ? '-' : `${pace} km/h`,
+      aidStations.find(a => a.name.includes(station.name.split(' ')[0]))?.cutoff || '-'
+    ];
+
+    cells.forEach((c, ci) => {
+      const cell = document.createElement('td');
+      if (ci === 2 || ci === 3) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = c;
+        input.size = 9;
+        input.addEventListener('change', () => {
+          if (ci === 2) station.etaIn = input.value;
+          if (ci === 3) station.etaOut = input.value;
+          updateTable();
+        });
+        cell.appendChild(input);
+      } else if (ci === 4) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = c;
+        input.size = 5;
+        input.addEventListener('change', () => {
+          station.rest = input.value;
+          updateTable();
+        });
+        cell.appendChild(input);
+      } else {
+        cell.textContent = c;
+      }
+      row.appendChild(cell);
+    });
+
     tbody.appendChild(row);
-  });
+  }
 
-  document.getElementById("goalTotal").textContent = `(${Math.round(totalElapsed)}:00 h ${formatTime(finishTime)})`;
+  document.getElementById('goalOutput').textContent =
+    `Goal finish time: ${minsToHM(goalMins)} h ${tableStations.at(-1).etaIn}`;
 }
 
 async function initMap() {
-  const map = L.map('map').setView([68.3, 24.0], 7);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  map = L.map('map').setView([68.4, 24.0], 8);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-  const gpxRes = await fetch("nuts300.gpx");
+  const gpxRes = await fetch(gpxUrl);
   const gpxText = await gpxRes.text();
   const parser = new DOMParser();
-  const gpx = parser.parseFromString(gpxText, "application/xml");
-  const geojson = toGeoJSON.gpx(gpx);
+  const gpxDoc = parser.parseFromString(gpxText, 'application/xml');
+  const geojson = toGeoJSON.gpx(gpxDoc);
 
-  L.geoJSON(geojson).addTo(map);
+  const gpxLayer = L.geoJSON(geojson, {
+    style: { color: 'blue', weight: 3 }
+  }).addTo(map);
+  map.fitBounds(gpxLayer.getBounds());
 
   aidStations.forEach(station => {
-    const marker = L.marker([station.lat, station.lon])
+    L.marker([station.lat, station.lon])
       .addTo(map)
-      .bindPopup(`${station.name}${station.waterOnly ? " (Water Only)" : ""}`);
+      .bindPopup(station.name + (station.cutoff ? `<br>Cutoff: ${station.cutoff}` : ''));
   });
 
   updateTable();
 }
+
+document.getElementById('calculateBtn').addEventListener('click', updateTable);
 
 initMap();
