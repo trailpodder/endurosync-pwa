@@ -1,31 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>NUTS 300 Planner</title>
-  <link rel="icon" href="favicon.ico">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="favicon.ico" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
   <style>
-    #map { height: 400px; margin-bottom: 1em; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: 4px; text-align: center; }
-    input[type="time"] { width: 90px; }
-    .cutoff-exceeded { background-color: #fdd; }
-    #summary { margin-top: 1em; font-weight: bold; }
+    #map {
+      height: 400px;
+      margin-bottom: 1em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: sans-serif;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 4px 6px;
+      text-align: center;
+    }
+    th {
+      background: #f0f0f0;
+    }
+    .cutoff-exceeded {
+      background-color: #fdd;
+    }
   </style>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 </head>
 <body>
   <h1>NUTS 300 Pacing Planner</h1>
+
   <div id="map"></div>
 
-  <table id="pace-table">
-    <!-- Filled by JS -->
-  </table>
+  <table id="pace-table"></table>
 
-  <button onclick="calculatePlan()">Calculate</button>
-  <div id="summary"></div>
-
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
   <script src="togeojson.js"></script>
   <script src="main.js"></script>
