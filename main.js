@@ -1,161 +1,108 @@
-let map;
-let gpxUrl = 'nuts300.gpx';
-
 const aidStations = [
-  { name: 'Start (Njurgulahti)', km: 0, cutoff: 'Mon 12:00', lat: 68.47115, lon: 24.84449 },
-  { name: 'Kalmankaltio', km: 88, cutoff: 'Tue 12:00', lat: 68.38303, lon: 23.66539 },
-  { name: 'Hetta', km: 192, cutoff: 'Thu 13:00', lat: 68.38372, lon: 23.62737 },
-  { name: 'Pallas', km: 256, cutoff: 'Fri 13:00', lat: 68.36449, lon: 24.03721 },
-  { name: 'Rauhala (water)', km: 277, lat: 68.32420, lon: 24.26421 },
-  { name: 'Pahtavuoma (water)', km: 288, lat: 68.28021, lon: 24.38163 },
-  { name: 'Peurakaltio (water)', km: 301, lat: 68.21952, lon: 24.55385 },
-  { name: 'Finish (Äkäslompolo)', km: 326, cutoff: 'Sat 18:00', lat: 67.61469, lon: 24.14971 }
+  { name: "Start (Njurgulahti)", dist: 0, lat: 68.5366, lon: 24.2609, cutoff: "Mon 12:00" },
+  { name: "Kalmankaltio", dist: 88, lat: 68.2822, lon: 23.6215, cutoff: "Tue 12:00" },
+  { name: "Hetta", dist: 192, lat: 68.3838, lon: 23.6227, cutoff: "Thu 13:00" },
+  { name: "Pallas", dist: 256, lat: 68.3735, lon: 24.0583, cutoff: "Fri 13:00" },
+  { name: "Finish (Äkäslompolo)", dist: 326, lat: 67.6026, lon: 24.1506, cutoff: "Sat 18:00" }
 ];
 
-const tableStations = [
-  { name: 'Start (Njurgulahti)', km: 0, etaIn: '-', etaOut: 'Mon 12:00', rest: '-' },
-  { name: 'Kalmankaltio', km: 88, etaIn: 'Tue 06:00', etaOut: 'Tue 07:00', rest: '01:00' },
-  { name: 'Hetta', km: 192, etaIn: 'Wed 13:00', etaOut: 'Wed 15:00', rest: '02:00' },
-  { name: 'Pallas', km: 256, etaIn: 'Thu 10:00', etaOut: 'Thu 13:00', rest: '03:00' },
-  { name: 'Finish (Äkäslompolo)', km: 326, etaIn: 'Fri 11:00', etaOut: '-', rest: '-' }
-];
-
-function parseTimeStr(str) {
-  if (str === '-') return null;
-  const [day, time] = str.split(' ');
-  const dayOffsets = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5 };
-  const [h, m] = time.split(':').map(Number);
-  return (dayOffsets[day] * 24 + h) * 60 + m;
-}
-
-function parseHM(str) {
-  if (str === '-' || !str.includes(':')) return 0;
-  const [h, m] = str.split(':').map(Number);
+function timeStrToMinutes(t) {
+  const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 }
 
-function minsToDayTime(mins) {
-  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const day = dayNames[Math.floor(mins / 1440)];
-  const hh = String(Math.floor((mins % 1440) / 60)).padStart(2, '0');
-  const mm = String(mins % 60).padStart(2, '0');
-  return `${day} ${hh}:${mm}`;
+function minutesToTimeStr(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-function minsToHM(mins) {
-  const hh = String(Math.floor(mins / 60)).padStart(2, '0');
-  const mm = String(mins % 60).padStart(2, '0');
-  return `${hh}:${mm}`;
+function addRow(tableBody, i, station, nextStation) {
+  const row = document.createElement("tr");
+  const distance = nextStation ? nextStation.dist - station.dist : 0;
+
+  row.innerHTML = `
+    <td>${station.name}</td>
+    <td>${distance > 0 ? distance : "-"}</td>
+    <td><input type="time" value="${i === 0 ? "00:00" : i === 1 ? "18:00" : i === 2 ? "30:00" : i === 3 ? "19:00" : "22:00"}" step="60" class="run"></td>
+    <td><input type="time" value="${i === 0 || i === 4 ? "00:00" : i === 1 ? "01:00" : i === 2 ? "02:00" : "03:00"}" step="60" class="rest"></td>
+    <td class="etain">-</td>
+    <td class="etaout">-</td>
+    <td class="elapsed">-</td>
+    <td class="pace">-</td>
+    <td>${station.cutoff}</td>
+  `;
+
+  tableBody.appendChild(row);
 }
 
-function updateTable() {
-  const tbody = document.querySelector('#plannerTable tbody');
-  tbody.innerHTML = '';
+function calculatePlan() {
+  const tbody = document.querySelector("#pacingTable tbody");
+  const rows = tbody.querySelectorAll("tr");
+  let totalElapsed = 0;
+  let resultTime = "";
 
-  let elapsed = 0;
-  let goalMins = 0;
+  rows.forEach((row, i) => {
+    const run = row.querySelector(".run").value;
+    const rest = row.querySelector(".rest").value;
+    const runMin = timeStrToMinutes(run);
+    const restMin = timeStrToMinutes(rest);
+    const elapsedCell = row.querySelector(".elapsed");
+    const etaInCell = row.querySelector(".etain");
+    const etaOutCell = row.querySelector(".etaout");
+    const paceCell = row.querySelector(".pace");
 
-  for (let i = 0; i < tableStations.length; i++) {
-    const row = document.createElement('tr');
-    const station = tableStations[i];
+    if (i === 0) {
+      etaInCell.textContent = "-";
+      etaOutCell.textContent = "Mon 12:00";
+      elapsedCell.textContent = "00:00";
+    } else {
+      const etaOutPrev = rows[i - 1].querySelector(".etaout").textContent;
+      const etaTimeParts = etaOutPrev.split(" ")[1].split(":");
+      let etaTotalMin = timeStrToMinutes(`${etaTimeParts[0]}:${etaTimeParts[1]}`);
 
-    const dist = station.km;
-    const nextDist = i < tableStations.length - 1 ? tableStations[i + 1].km : dist;
-    const sectionDist = nextDist - dist;
+      totalElapsed += runMin + restMin;
+      const etaInTime = minutesToTimeStr(etaTotalMin + runMin);
+      const etaOutTime = minutesToTimeStr(etaTotalMin + runMin + restMin);
 
-    const etaInStr = station.etaIn;
-    const etaOutStr = station.etaOut;
-    const etaInMins = parseTimeStr(etaInStr);
-    const etaOutMins = parseTimeStr(etaOutStr);
-    const restMins = parseHM(station.rest);
+      const dayList = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      const etaInDay = dayList[Math.floor((totalElapsed + 720) / 1440) % 7];
+      const etaOutDay = dayList[Math.floor((totalElapsed + 720 + restMin) / 1440) % 7];
 
-    let sectionTime = 0;
-    if (i > 0 && etaInMins !== null && parseTimeStr(tableStations[i - 1].etaOut) !== null) {
-      sectionTime = etaInMins - parseTimeStr(tableStations[i - 1].etaOut);
+      etaInCell.textContent = `${etaInDay} ${etaInTime}`;
+      etaOutCell.textContent = i === rows.length - 1 ? "-" : `${etaOutDay} ${etaOutTime}`;
+      elapsedCell.textContent = minutesToTimeStr(totalElapsed);
     }
 
-    if (etaOutMins !== null && parseTimeStr(tableStations[0].etaOut) !== null) {
-      elapsed = etaOutMins - parseTimeStr(tableStations[0].etaOut);
-    }
-
-    if (i === tableStations.length - 1 && etaInMins !== null) {
-      goalMins = etaInMins - parseTimeStr(tableStations[0].etaOut);
-    }
-
-    const pace = sectionTime && sectionDist ? (sectionDist / (sectionTime / 60)).toFixed(2) : '-';
-
-    const cells = [
-      station.name,
-      sectionDist || '-',
-      etaInStr,
-      etaOutStr,
-      station.rest,
-      i === 0 ? '-' : minsToHM(sectionTime),
-      minsToHM(elapsed),
-      pace === '-' ? '-' : `${pace} km/h`,
-      aidStations.find(a => a.name.includes(station.name.split(' ')[0]))?.cutoff || '-'
-    ];
-
-    cells.forEach((c, ci) => {
-      const cell = document.createElement('td');
-      if (ci === 2 || ci === 3) {
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.value = c;
-        input.size = 9;
-        input.addEventListener('change', () => {
-          if (ci === 2) station.etaIn = input.value;
-          if (ci === 3) station.etaOut = input.value;
-          updateTable();
-        });
-        cell.appendChild(input);
-      } else if (ci === 4) {
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.value = c;
-        input.size = 5;
-        input.addEventListener('change', () => {
-          station.rest = input.value;
-          updateTable();
-        });
-        cell.appendChild(input);
-      } else {
-        cell.textContent = c;
-      }
-      row.appendChild(cell);
-    });
-
-    tbody.appendChild(row);
-  }
-
-  document.getElementById('goalOutput').textContent =
-    `Goal finish time: ${minsToHM(goalMins)} h ${tableStations.at(-1).etaIn}`;
-}
-
-async function initMap() {
-  map = L.map('map').setView([68.4, 24.0], 8);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-  const gpxRes = await fetch(gpxUrl);
-  const gpxText = await gpxRes.text();
-  const parser = new DOMParser();
-  const gpxDoc = parser.parseFromString(gpxText, 'application/xml');
-  const geojson = toGeoJSON.gpx(gpxDoc);
-
-  const gpxLayer = L.geoJSON(geojson, {
-    style: { color: 'blue', weight: 3 }
-  }).addTo(map);
-  map.fitBounds(gpxLayer.getBounds());
-
-  aidStations.forEach(station => {
-    L.marker([station.lat, station.lon])
-      .addTo(map)
-      .bindPopup(station.name + (station.cutoff ? `<br>Cutoff: ${station.cutoff}` : ''));
+    const dist = aidStations[i + 1] ? aidStations[i + 1].dist - aidStations[i].dist : 0;
+    const pace = dist && runMin ? (dist / (runMin / 60)).toFixed(2) : "-";
+    paceCell.textContent = pace !== "-" ? `${pace} km/h` : "-";
   });
 
-  updateTable();
+  const goalHours = Math.floor(totalElapsed / 60);
+  const goalMinutes = totalElapsed % 60;
+  const goalDay = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][(Math.floor((720 + totalElapsed) / 1440)) % 7];
+  const goalTimeStr = `${String(goalHours).padStart(2, '0')}:${String(goalMinutes).padStart(2, '0')} h ${goalDay} ${minutesToTimeStr((720 + totalElapsed) % 1440)}`;
+  document.getElementById("goalTime").textContent = goalTimeStr;
 }
 
-document.getElementById('calculateBtn').addEventListener('click', updateTable);
+function initMap() {
+  const map = L.map("map").setView([68.4, 24.0], 7);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors"
+  }).addTo(map);
 
-initMap();
+  aidStations.forEach(station => {
+    L.marker([station.lat, station.lon]).addTo(map).bindPopup(`${station.name}<br>Cutoff: ${station.cutoff}`);
+  });
+
+  const tbody = document.querySelector("#pacingTable tbody");
+  for (let i = 0; i < aidStations.length; i++) {
+    addRow(tbody, i, aidStations[i], aidStations[i + 1]);
+  }
+
+  document.getElementById("calculateBtn").addEventListener("click", calculatePlan);
+  calculatePlan();
+}
+
+document.addEventListener("DOMContentLoaded", initMap);
