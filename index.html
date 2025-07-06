@@ -4,32 +4,29 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NUTS 300 Planner</title>
-  <link rel="stylesheet" href="style.css" />
-  <link rel="icon" href="favicon.ico" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="togeojson.js"></script>
+  <style>
+    #map { height: 400px; margin-bottom: 1rem; }
+    table { border-collapse: collapse; width: 100%; font-size: 14px; }
+    th, td { border: 1px solid #aaa; padding: 4px 6px; text-align: center; }
+    input[type="time"], input[type="number"] { width: 5em; }
+  </style>
 </head>
 <body>
   <h1>NUTS 300 Pacing Planner</h1>
-  <label>
-    Goal Finish Time (hh:mm Fri):
-    <input type="time" id="goalTimeInput" value="11:00" />
-  </label>
-  <button id="calculateBtn">Calculate</button>
 
-  <div id="map" style="height: 400px; margin-top: 1em"></div>
+  <div id="map"></div>
 
-  <table id="plannerTable">
+  <table id="pacingTable">
     <thead>
       <tr>
         <th>Segment</th>
         <th>Distance (km)</th>
+        <th>Run Time (hh:mm)</th>
+        <th>Rest Time (hh:mm)</th>
         <th>ETA In</th>
         <th>ETA Out</th>
-        <th>Rest Time</th>
-        <th>Section Time</th>
-        <th>Total Elapsed</th>
+        <th>Elapsed</th>
         <th>Pace (km/h)</th>
         <th>Cutoff</th>
       </tr>
@@ -37,8 +34,11 @@
     <tbody></tbody>
   </table>
 
-  <div id="goalOutput" style="margin-top: 1em; font-weight: bold"></div>
+  <p><strong>Goal Finish Time:</strong> <span id="goalTime"></span></p>
 
+  <button id="calculateBtn">Calculate</button>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="main.js"></script>
 </body>
 </html>
