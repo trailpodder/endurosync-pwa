@@ -24,8 +24,8 @@ function addRow(tableBody, i, station, nextStation) {
   row.innerHTML = `
     <td>${station.name}</td>
     <td>${distance > 0 ? distance : "-"}</td>
-    <td><input type="time" value="${i === 0 ? "00:00" : i === 1 ? "18:00" : i === 2 ? "30:00" : i === 3 ? "19:00" : "22:00"}" step="60" class="run"></td>
-    <td><input type="time" value="${i === 0 || i === 4 ? "00:00" : i === 1 ? "01:00" : i === 2 ? "02:00" : "03:00"}" step="60" class="rest"></td>
+    <td><input type="text" value="${i === 0 ? "00:00" : i === 1 ? "18:00" : i === 2 ? "30:00" : i === 3 ? "19:00" : "22:00"}" class="run"></td>
+    <td><input type="text" value="${i === 0 || i === 4 ? "00:00" : i === 1 ? "01:00" : i === 2 ? "02:00" : "03:00"}" class="rest"></td>
     <td class="etain">-</td>
     <td class="etaout">-</td>
     <td class="elapsed">-</td>
@@ -91,6 +91,15 @@ function initMap() {
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap contributors"
   }).addTo(map);
+
+  fetch("nuts300.gpx")
+    .then(response => response.text())
+    .then(str => new DOMParser().parseFromString(str, "text/xml"))
+    .then(gpx => {
+      const geojson = toGeoJSON.gpx(gpx);
+      const route = L.geoJSON(geojson).addTo(map);
+      map.fitBounds(route.getBounds());
+    });
 
   aidStations.forEach(station => {
     L.marker([station.lat, station.lon]).addTo(map).bindPopup(`${station.name}<br>Cutoff: ${station.cutoff}`);
