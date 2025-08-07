@@ -24,8 +24,8 @@ function addRow(tableBody, i, station, nextStation) {
   row.innerHTML = `
     <td>${station.name}</td>
     <td>${distance > 0 ? distance : "-"}</td>
-    <td><input type="time" value="${i === 0 ? "00:00" : i === 1 ? "18:00" : i === 2 ? "30:00" : i === 3 ? "19:00" : "22:00"}" step="60" class="run"></td>
-    <td><input type="time" value="${i === 0 || i === 4 ? "00:00" : i === 1 ? "01:00" : i === 2 ? "02:00" : "03:00"}" step="60" class="rest"></td>
+    <td><input type="text" value="${i === 0 ? "00:00" : i === 1 ? "18:00" : i === 2 ? "30:00" : i === 3 ? "19:00" : "22:00"}" step="60" class="run"></td>
+    <td><input type="text" value="${i === 0 || i === 4 ? "00:00" : i === 1 ? "01:00" : i === 2 ? "02:00" : "03:00"}" step="60" class="rest"></td>
     <td class="etain">-</td>
     <td class="etaout">-</td>
     <td class="elapsed">-</td>
