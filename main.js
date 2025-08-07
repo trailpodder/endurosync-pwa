@@ -96,6 +96,20 @@ function initMap() {
     L.marker([station.lat, station.lon]).addTo(map).bindPopup(`${station.name}<br>Cutoff: ${station.cutoff}`);
   });
 
+  fetch("nuts300.gpx")
+    .then(response => response.text())
+    .then(gpxText => {
+      const gpx = new DOMParser().parseFromString(gpxText, "text/xml");
+      const geojson = togeojson.gpx(gpx);
+      L.geoJSON(geojson, {
+        style: {
+          color: "blue",
+          weight: 3,
+          opacity: 0.7
+        }
+      }).addTo(map);
+    });
+
   const tbody = document.querySelector("#pacingTable tbody");
   for (let i = 0; i < aidStations.length; i++) {
     addRow(tbody, i, aidStations[i], aidStations[i + 1]);
