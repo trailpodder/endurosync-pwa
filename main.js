@@ -88,6 +88,29 @@ function calculatePlan() {
   document.getElementById("goalTime").textContent = goalTimeStr;
 }
 
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distance in km
+}
+
+function calculateElevationGain(coords) {
+  let elevationGain = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const elevationDiff = coords[i][2] - coords[i - 1][2];
+    if (elevationDiff > 0) {
+      elevationGain += elevationDiff;
+    }
+  }
+  return elevationGain;
+}
+
 function initialize() {
   const tbody = document.querySelector("#pacingTable tbody");
   for (let i = 0; i < aidStations.length; i++) {
@@ -96,6 +119,38 @@ function initialize() {
 
   document.getElementById("calculateBtn").addEventListener("click", calculatePlan);
   calculatePlan();
+
+  const gpxFileInput = document.getElementById('gpxFile');
+  gpxFileInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const gpxText = e.target.result;
+      const gpx = new DOMParser().parseFromString(gpxText, 'text/xml');
+      const geojson = toGeoJSON.gpx(gpx);
+
+      const coords = geojson.features[0].geometry.coordinates;
+      console.log('Sample coordinates:', coords.slice(0, 5));
+      let totalDistance = 0;
+      for (let i = 1; i < coords.length; i++) {
+        totalDistance += calculateDistance(coords[i-1][1], coords[i-1][0], coords[i][1], coords[i][0]);
+      }
+
+      const totalElevationGain = calculateElevationGain(coords);
+
+      const courseInfoDiv = document.getElementById('courseInfo');
+      courseInfoDiv.innerHTML = `
+        <h3>Course Information</h3>
+        <p>Total Distance: ${totalDistance.toFixed(2)} km</p>
+        <p>Total Elevation Gain: ${totalElevationGain.toFixed(2)} m</p>
+      `;
+    };
+    reader.readAsText(file);
+  });
 }
 
 document.addEventListener("DOMContentLoaded", initialize);
