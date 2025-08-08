@@ -4,9 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NUTS 300 Planner</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    #map { height: 400px; margin-bottom: 1rem; }
     table { border-collapse: collapse; width: 100%; font-size: 14px; }
     th, td { border: 1px solid #aaa; padding: 4px 6px; text-align: center; }
     input[type="time"], input[type="number"] { width: 5em; }
@@ -14,8 +12,6 @@
 </head>
 <body>
   <h1>NUTS 300 Pacing Planner</h1>
-
-  <div id="map"></div>
 
   <table id="pacingTable">
     <thead>
@@ -38,7 +34,6 @@
 
   <button id="calculateBtn">Calculate</button>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="main.js"></script>
 </body>
 </html>
