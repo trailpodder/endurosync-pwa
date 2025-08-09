@@ -1,10 +1,4 @@
-const aidStations = [
-  { name: "Start (Njurgulahti)", dist: 0, cutoff: "Mon 12:00", run: "00:00", rest: "00:00" },
-  { name: "Kalmankaltio", dist: 88, cutoff: "Tue 12:00", run: "18:00", rest: "01:00" },
-  { name: "Hetta", dist: 192, cutoff: "Thu 13:00", run: "30:00", rest: "02:00" },
-  { name: "Pallas", dist: 256, cutoff: "Fri 13:00", run: "19:00", rest: "03:00" },
-  { name: "Finish (Äkäslompolo)", dist: 326, cutoff: "Sat 18:00", run: "22:00", rest: "00:00" }
-];
+let parsedGpxData = null;
 
 function timeStrToMinutes(t) {
   const [h, m] = t.split(":").map(Number);
@@ -12,80 +6,10 @@ function timeStrToMinutes(t) {
 }
 
 function minutesToTimeStr(mins) {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
+  const totalMinutes = Math.round(mins);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-function addRow(tableBody, i, station, nextStation) {
-  const row = document.createElement("tr");
-  const distance = nextStation ? nextStation.dist - station.dist : 0;
-
-  row.innerHTML = `
-    <td>${station.name}</td>
-    <td>${distance > 0 ? distance : "-"}</td>
-    <td><input type="text" value="${station.run}" pattern="[0-9]{2}:[0-9]{2}" class="run"></td>
-    <td><input type="text" value="${station.rest}" pattern="[0-9]{2}:[0-9]{2}" class="rest"></td>
-    <td class="etain">-</td>
-    <td class="etaout">-</td>
-    <td class="elapsed">-</td>
-    <td class="pace">-</td>
-    <td>${station.cutoff}</td>
-  `;
-
-  tableBody.appendChild(row);
-}
-
-function calculatePlan() {
-  const tbody = document.querySelector("#pacingTable tbody");
-  const rows = tbody.querySelectorAll("tr");
-  let cumulativeMinutes = 0;
-  const startOffsetMinutes = 12 * 60; // Mon 12:00
-  const dayList = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-  rows.forEach((row, i) => {
-    const run = row.querySelector(".run").value;
-    const rest = row.querySelector(".rest").value;
-    const runMin = timeStrToMinutes(run);
-    const restMin = timeStrToMinutes(rest);
-    const elapsedCell = row.querySelector(".elapsed");
-    const etaInCell = row.querySelector(".etain");
-    const etaOutCell = row.querySelector(".etaout");
-    const paceCell = row.querySelector(".pace");
-
-    if (i === 0) {
-      etaInCell.textContent = "-";
-      etaOutCell.textContent = "Mon 12:00";
-      elapsedCell.textContent = "00:00";
-    } else {
-      const arrivalMinutes = cumulativeMinutes + runMin;
-      const departureMinutes = arrivalMinutes + restMin;
-
-      const absoluteArrivalMinutes = startOffsetMinutes + arrivalMinutes;
-      const arrivalDay = dayList[Math.floor(absoluteArrivalMinutes / 1440) % 7];
-      const arrivalTime = minutesToTimeStr(absoluteArrivalMinutes % 1440);
-      etaInCell.textContent = `${arrivalDay} ${arrivalTime}`;
-
-      const absoluteDepartureMinutes = startOffsetMinutes + departureMinutes;
-      const departureDay = dayList[Math.floor(absoluteDepartureMinutes / 1440) % 7];
-      const departureTime = minutesToTimeStr(absoluteDepartureMinutes % 1440);
-      etaOutCell.textContent = i === rows.length - 1 ? "-" : `${departureDay} ${departureTime}`;
-      elapsedCell.textContent = minutesToTimeStr(departureMinutes);
-
-      cumulativeMinutes = departureMinutes;
-    }
-
-    const dist = aidStations[i + 1] ? aidStations[i + 1].dist - aidStations[i].dist : 0;
-    const pace = dist && runMin ? (dist / (runMin / 60)).toFixed(2) : "-";
-    paceCell.textContent = pace !== "-" ? `${pace} km/h` : "-";
-  });
-
-  const goalHours = Math.floor(cumulativeMinutes / 60);
-  const goalMinutes = cumulativeMinutes % 60;
-  const absoluteGoalMinutes = startOffsetMinutes + cumulativeMinutes;
-  const goalDay = dayList[(Math.floor(absoluteGoalMinutes / 1440)) % 7];
-  const goalTimeStr = `${String(goalHours).padStart(2, '0')}:${String(goalMinutes).padStart(2, '0')} h ${goalDay} ${minutesToTimeStr(absoluteGoalMinutes % 1440)}`;
-  document.getElementById("goalTime").textContent = goalTimeStr;
 }
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -111,15 +35,87 @@ function calculateElevationGain(coords) {
   return elevationGain;
 }
 
-function initialize() {
-  const tbody = document.querySelector("#pacingTable tbody");
-  for (let i = 0; i < aidStations.length; i++) {
-    addRow(tbody, i, aidStations[i], aidStations[i + 1]);
+function generatePacingPlan() {
+  if (!parsedGpxData) {
+    alert("Please upload a GPX file first.");
+    return;
   }
 
-  document.getElementById("calculateBtn").addEventListener("click", calculatePlan);
-  calculatePlan();
+  const goalTimeInput = document.getElementById('goalTime').value;
+  const backpackWeight = parseFloat(document.getElementById('backpackWeight').value);
 
+  if (!goalTimeInput) {
+    alert("Please enter a goal finish time.");
+    return;
+  }
+
+  const goalTimeMinutes = timeStrToMinutes(goalTimeInput);
+  const coords = parsedGpxData.features[0].geometry.coordinates;
+  const totalDistance = parsedGpxData.totalDistance;
+
+  // Base pace in minutes per km
+  const basePace = goalTimeMinutes / totalDistance;
+
+  const segments = [];
+  const segmentLength = 1; // 1 km segments
+  let distanceCovered = 0;
+  let segmentPoints = [coords[0]];
+
+  for (let i = 1; i < coords.length; i++) {
+    const dist = calculateDistance(coords[i-1][1], coords[i-1][0], coords[i][1], coords[i][0]);
+    distanceCovered += dist;
+    segmentPoints.push(coords[i]);
+
+    if (distanceCovered >= segmentLength || i === coords.length - 1) {
+      const segmentDistance = distanceCovered;
+      const startEle = segmentPoints[0][2];
+      const endEle = segmentPoints[segmentPoints.length - 1][2];
+      const elevationChange = endEle - startEle;
+      const gradient = (elevationChange / (segmentDistance * 1000)) * 100; // in percent
+
+      let adjustedPace = basePace;
+      if (gradient > 0) {
+        adjustedPace *= (1 + (gradient * 0.025)); // 2.5% slower per 1% incline
+      } else {
+        adjustedPace *= (1 + (gradient * 0.015)); // 1.5% faster per 1% decline (gradient is negative)
+      }
+
+      const finalPace = adjustedPace * (1 + (backpackWeight * 0.01)); // 1% slower per kg
+      const segmentTime = finalPace * segmentDistance;
+
+      segments.push({
+        distance: segmentDistance,
+        pace: finalPace,
+        time: segmentTime,
+        elevationChange: elevationChange,
+        gradient: gradient
+      });
+
+      distanceCovered = 0;
+      segmentPoints = [coords[i]];
+    }
+  }
+
+  const tableBody = document.querySelector("#newPacingTable tbody");
+  tableBody.innerHTML = ""; // Clear existing rows
+
+  let cumulativeDistance = 0;
+  segments.forEach(segment => {
+    cumulativeDistance += segment.distance;
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${cumulativeDistance.toFixed(2)}</td>
+      <td>${segment.distance.toFixed(2)}</td>
+      <td>${segment.pace.toFixed(2)}</td>
+      <td>${minutesToTimeStr(segment.time)}</td>
+      <td>${segment.elevationChange.toFixed(2)}</td>
+      <td>${segment.gradient.toFixed(2)}</td>
+    `;
+    tableBody.appendChild(row);
+  });
+}
+
+function initialize() {
   const gpxFileInput = document.getElementById('gpxFile');
   gpxFileInput.addEventListener('change', (event) => {
     const file = event.target.files[0];
@@ -134,11 +130,13 @@ function initialize() {
       const geojson = toGeoJSON.gpx(gpx);
 
       const coords = geojson.features[0].geometry.coordinates;
-      console.log('Sample coordinates:', coords.slice(0, 5));
       let totalDistance = 0;
       for (let i = 1; i < coords.length; i++) {
         totalDistance += calculateDistance(coords[i-1][1], coords[i-1][0], coords[i][1], coords[i][0]);
       }
+
+      geojson.totalDistance = totalDistance;
+      parsedGpxData = geojson;
 
       const totalElevationGain = calculateElevationGain(coords);
 
@@ -151,6 +149,8 @@ function initialize() {
     };
     reader.readAsText(file);
   });
+
+  document.getElementById('generatePlanBtn').addEventListener('click', generatePacingPlan);
 }
 
 document.addEventListener("DOMContentLoaded", initialize);
