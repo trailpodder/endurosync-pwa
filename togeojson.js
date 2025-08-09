@@ -31,9 +31,11 @@
         const trkpts = get("trkpt", trksegs[j]);
         for (let k = 0; k < trkpts.length; k++) {
           const pt = trkpts[k];
+          const ele = get("ele", pt)[0];
           coords.push([
             parseFloat(attr(pt, "lon")),
-            parseFloat(attr(pt, "lat"))
+            parseFloat(attr(pt, "lat")),
+            ele ? parseFloat(nodeVal(ele)) : 0
           ]);
         }
       }

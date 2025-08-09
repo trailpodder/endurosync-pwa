@@ -11,7 +11,14 @@
   </style>
 </head>
 <body>
-  <h1>NUTS 300 Pacing Planner</h1>
+  <h1>EnduroSync: GPX Pacing & Nutrition Planner</h1>
+
+  <div>
+    <label for="gpxFile">Upload GPX File:</label>
+    <input type="file" id="gpxFile" accept=".gpx">
+  </div>
+
+  <div id="courseInfo"></div>
 
   <table id="pacingTable">
     <thead>
@@ -34,6 +41,7 @@
 
   <button id="calculateBtn">Calculate</button>
 
+  <script src="togeojson.js"></script>
   <script src="main.js"></script>
 </body>
 </html>
