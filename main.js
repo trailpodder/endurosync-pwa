@@ -57,7 +57,7 @@ function generatePacingPlan() {
   const basePace = goalTimeMinutes / totalDistance;
 
   const segments = [];
-  const segmentLength = 1; // 1 km segments
+  const segmentLength = 10; // 10 km segments
   let distanceCovered = 0;
   let segmentPoints = [coords[0]];
 
@@ -100,14 +100,17 @@ function generatePacingPlan() {
   tableBody.innerHTML = ""; // Clear existing rows
 
   let cumulativeDistance = 0;
+  let cumulativeTime = 0;
   segments.forEach(segment => {
     cumulativeDistance += segment.distance;
+    cumulativeTime += segment.time;
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${cumulativeDistance.toFixed(2)}</td>
       <td>${segment.distance.toFixed(2)}</td>
       <td>${segment.pace.toFixed(2)}</td>
       <td>${minutesToTimeStr(segment.time)}</td>
+      <td>${minutesToTimeStr(cumulativeTime)}</td>
       <td>${segment.elevationChange.toFixed(2)}</td>
       <td>${segment.gradient.toFixed(2)}</td>
     `;
