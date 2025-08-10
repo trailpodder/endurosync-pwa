@@ -51,7 +51,6 @@ function generatePacingPlan() {
         return;
     }
     const goalTimeInput = document.getElementById('goalTime').value;
-    const backpackWeight = parseFloat(document.getElementById('backpackWeight').value);
     if (!goalTimeInput) {
         alert("Please enter a goal finish time.");
         return;
@@ -63,106 +62,46 @@ function generatePacingPlan() {
         return;
     }
 
-    // 2. Prepare race plan with user's goal time
-    const racePlan = JSON.parse(JSON.stringify(cutOffs));
-    racePlan[racePlan.length - 1].time = goalTimeMinutes;
-
-    // 3. Initialize variables
+    // 2. Clear table and initialize variables
     const tableBody = document.querySelector("#newPacingTable tbody");
-    tableBody.innerHTML = ""; // Clear existing rows
-    const coords = parsedGpxData.features[0].geometry.coordinates;
-    const segmentLength = 10; // 10 km segments
+    tableBody.innerHTML = "";
+    let cumulativeArrivalTime = 0;
 
-    let gpxCoordIndex = 1;
-    let cumulativeDistance = 0;
-    let cumulativeTime = 0;
+    // 3. Loop through each major race section
+    for (let i = 0; i < cutOffs.length - 1; i++) {
+        const sectionStart = cutOffs[i];
+        const sectionEnd = cutOffs[i+1];
 
-    // 4. Loop through each major race section (between cut-offs)
-    for (let i = 0; i < racePlan.length - 1; i++) {
-        const sectionStart = racePlan[i];
-        const sectionEnd = racePlan[i+1];
-
-        // Determine the time budget for this section
         const isFinishSection = (sectionEnd.name === 'Finish');
-        const sectionTimeBudget = (sectionEnd.time - sectionStart.time) - (isFinishSection ? 0 : bufferMinutes);
-        const sectionDistance = sectionEnd.distance - sectionStart.distance;
 
-        if (sectionTimeBudget <= 0) {
-            alert(`Impossible plan. The time budget for the section "${sectionStart.name} to ${sectionEnd.name}" is zero or negative. Please check cut-off times.`);
+        // Determine the planned arrival time for the end of this section
+        const plannedArrivalTime = isFinishSection ? goalTimeMinutes : sectionEnd.time - bufferMinutes;
+
+        // Calculate section-specific metrics
+        const sectionDistance = sectionEnd.distance - sectionStart.distance;
+        const sectionTime = plannedArrivalTime - cumulativeArrivalTime;
+
+        if (sectionTime <= 0) {
+            alert(`Impossible plan. The time budget for the section "${sectionStart.name} to ${sectionEnd.name}" is zero or negative. Try a faster goal time.`);
+            tableBody.innerHTML = ""; // Clear partial plan
             return;
         }
 
-        const sectionBasePace = sectionTimeBudget / sectionDistance;
-        let distanceWithinSection = 0;
+        const avgPace = sectionTime / sectionDistance;
 
-        // 5. Loop through GPX coordinates to create 10km segments for this major section
-        let segmentPoints = [coords[gpxCoordIndex - 1]];
-        let distanceCoveredInSegment = 0;
-
-        while (gpxCoordIndex < coords.length) {
-            const dist = calculateDistance(coords[gpxCoordIndex - 1][1], coords[gpxCoordIndex - 1][0], coords[gpxCoordIndex][1], coords[gpxCoordIndex][0]);
-
-            // Check if adding this point exceeds the major section boundary
-            if (cumulativeDistance + distanceWithinSection + dist > sectionEnd.distance) {
-                // This point is in the next major section, break to the outer loop
-                break;
-            }
-
-            distanceCoveredInSegment += dist;
-            distanceWithinSection += dist;
-            segmentPoints.push(coords[gpxCoordIndex]);
-
-            // Create a 10km segment row if length is met
-            if (distanceCoveredInSegment >= segmentLength) {
-                const segmentDistance = distanceCoveredInSegment;
-                const startEle = segmentPoints[0][2];
-                const endEle = segmentPoints[segmentPoints.length - 1][2];
-                const elevationChange = endEle - startEle;
-                const gradient = (elevationChange / (segmentDistance * 1000)) * 100;
-
-                let adjustedPace = sectionBasePace;
-                if (gradient > 0) {
-                    adjustedPace *= (1 + (gradient * 0.025)); // 2.5% slower per 1% incline
-                } else {
-                    adjustedPace *= (1 + (gradient * 0.015)); // 1.5% faster per 1% decline
-                }
-                const finalPace = adjustedPace * (1 + (backpackWeight * 0.01));
-                const segmentTime = finalPace * segmentDistance;
-
-                cumulativeDistance += segmentDistance;
-                cumulativeTime += segmentTime;
-
-                const row = document.createElement("tr");
-                row.innerHTML = `
-                    <td>${cumulativeDistance.toFixed(2)}</td>
-                    <td>${segmentDistance.toFixed(2)}</td>
-                    <td>${finalPace.toFixed(2)}</td>
-                    <td>${minutesToTimeStr(segmentTime)}</td>
-                    <td>${minutesToTimeStr(cumulativeTime)}</td>
-                    <td>${elevationChange.toFixed(2)}</td>
-                    <td>${gradient.toFixed(2)}</td>
-                `;
-                tableBody.appendChild(row);
-
-                // Reset for next segment
-                distanceCoveredInSegment = 0;
-                segmentPoints = [coords[gpxCoordIndex]];
-            }
-            gpxCoordIndex++;
-        }
-
-        // Add the cut-off row for the end of the major section
-        const arrivalTime = sectionStart.time + sectionTimeBudget;
-        const cutOffRow = document.createElement("tr");
-        cutOffRow.className = 'cut-off-row';
-        cutOffRow.innerHTML = `
-            <td colspan="7" style="text-align: center;">
-              <strong>${sectionEnd.name} @ ${sectionEnd.distance.toFixed(2)} km</strong> |
-              Arrival: ${minutesToTimeStr(arrivalTime)} |
-              Cut-off: ${minutesToTimeStr(sectionEnd.time)}
-            </td>
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${sectionStart.name} to ${sectionEnd.name}</td>
+            <td>${sectionDistance.toFixed(2)}</td>
+            <td>${minutesToTimeStr(sectionTime)}</td>
+            <td>${avgPace.toFixed(2)}</td>
+            <td>${minutesToTimeStr(plannedArrivalTime)}</td>
+            <td>${minutesToTimeStr(sectionEnd.time)}</td>
         `;
-        tableBody.appendChild(cutOffRow);
+        tableBody.appendChild(row);
+
+        // Update cumulative time for the next iteration
+        cumulativeArrivalTime = plannedArrivalTime;
     }
 }
 
