@@ -1,6 +1,7 @@
 let parsedGpxData = null;
 
 const cutOffs = [
+  { name: 'Start', distance: 0, time: 0 },
   { name: 'Kalmakaltio', distance: 88, time: 24 * 60 }, // 24:00h in minutes
   { name: 'Hetta', distance: 206, time: 73 * 60 }, // 73:00h in minutes
   { name: 'Pallas', distance: 261, time: 97 * 60 }, // 97:00h in minutes
@@ -43,172 +44,126 @@ function calculateElevationGain(coords) {
   return elevationGain;
 }
 
-function calculateEstimatedTimeAtDistance(targetDistance, goalTimeMinutes, backpackWeight) {
-  if (!parsedGpxData) return 0;
-
-  const coords = parsedGpxData.features[0].geometry.coordinates;
-  const totalDistance = parsedGpxData.totalDistance;
-  const basePace = goalTimeMinutes / totalDistance;
-
-  let distanceCovered = 0;
-  let estimatedTime = 0;
-
-  for (let i = 1; i < coords.length; i++) {
-    const segmentStart = coords[i-1];
-    const segmentEnd = coords[i];
-    const segmentDistance = calculateDistance(segmentStart[1], segmentStart[0], segmentEnd[1], segmentEnd[0]);
-
-    if (distanceCovered + segmentDistance >= targetDistance) {
-      const remainingDistance = targetDistance - distanceCovered;
-      const elevationChange = segmentEnd[2] - segmentStart[2];
-      const gradient = (elevationChange / (segmentDistance * 1000)) * 100;
-      let adjustedPace = basePace;
-      if (gradient > 0) adjustedPace *= (1 + (gradient * 0.025));
-      else adjustedPace *= (1 + (gradient * 0.015));
-      const finalPace = adjustedPace * (1 + (backpackWeight * 0.01));
-      estimatedTime += finalPace * remainingDistance;
-      break;
-    }
-
-    distanceCovered += segmentDistance;
-
-    const elevationChange = segmentEnd[2] - segmentStart[2];
-    const gradient = (elevationChange / (segmentDistance * 1000)) * 100;
-    let adjustedPace = basePace;
-    if (gradient > 0) adjustedPace *= (1 + (gradient * 0.025));
-    else adjustedPace *= (1 + (gradient * 0.015));
-    const finalPace = adjustedPace * (1 + (backpackWeight * 0.01));
-    estimatedTime += finalPace * segmentDistance;
-  }
-
-  return estimatedTime;
-}
-
 function generatePacingPlan() {
-  if (!parsedGpxData) {
-    alert("GPX data not loaded yet. Please wait or refresh the page.");
-    return;
-  }
-
-  const goalTimeInput = document.getElementById('goalTime').value;
-  const backpackWeight = parseFloat(document.getElementById('backpackWeight').value);
-
-  if (!goalTimeInput) {
-    alert("Please enter a goal finish time.");
-    return;
-  }
-
-  const goalTimeMinutes = timeStrToMinutes(goalTimeInput);
-  const finishCutOff = cutOffs[cutOffs.length - 1];
-
-  if (goalTimeMinutes >= finishCutOff.time) {
-    alert(`Your goal time of ${minutesToTimeStr(goalTimeMinutes)} exceeds the final cut-off time of ${minutesToTimeStr(finishCutOff.time)}.`);
-    return;
-  }
-
-  for (const cutOff of cutOffs) {
-    if (cutOff.name === 'Finish') continue;
-
-    const estimatedTime = calculateEstimatedTimeAtDistance(cutOff.distance, goalTimeMinutes, backpackWeight);
-    const requiredTime = cutOff.time - bufferMinutes;
-
-    if (estimatedTime >= requiredTime) {
-      alert(
-        `Validation failed at ${cutOff.name}.\n` +
-        `Estimated arrival: ${minutesToTimeStr(estimatedTime)}\n` +
-        `Required arrival (with 3h buffer): ${minutesToTimeStr(requiredTime)}\n` +
-        `Cut-off time: ${minutesToTimeStr(cutOff.time)}\n\n` +
-        `Please adjust your goal time to be faster.`
-      );
-      return;
+    // 1. Get and validate inputs
+    if (!parsedGpxData) {
+        alert("GPX data not loaded yet. Please wait or refresh the page.");
+        return;
     }
-  }
-  const coords = parsedGpxData.features[0].geometry.coordinates;
-  const totalDistance = parsedGpxData.totalDistance;
-
-  // Base pace in minutes per km
-  const basePace = goalTimeMinutes / totalDistance;
-
-  const segments = [];
-  const segmentLength = 10; // 10 km segments
-  let distanceCovered = 0;
-  let segmentPoints = [coords[0]];
-
-  for (let i = 1; i < coords.length; i++) {
-    const dist = calculateDistance(coords[i-1][1], coords[i-1][0], coords[i][1], coords[i][0]);
-    distanceCovered += dist;
-    segmentPoints.push(coords[i]);
-
-    if (distanceCovered >= segmentLength || i === coords.length - 1) {
-      const segmentDistance = distanceCovered;
-      const startEle = segmentPoints[0][2];
-      const endEle = segmentPoints[segmentPoints.length - 1][2];
-      const elevationChange = endEle - startEle;
-      const gradient = (elevationChange / (segmentDistance * 1000)) * 100; // in percent
-
-      let adjustedPace = basePace;
-      if (gradient > 0) {
-        adjustedPace *= (1 + (gradient * 0.025)); // 2.5% slower per 1% incline
-      } else {
-        adjustedPace *= (1 + (gradient * 0.015)); // 1.5% faster per 1% decline (gradient is negative)
-      }
-
-      const finalPace = adjustedPace * (1 + (backpackWeight * 0.01)); // 1% slower per kg
-      const segmentTime = finalPace * segmentDistance;
-
-      segments.push({
-        distance: segmentDistance,
-        pace: finalPace,
-        time: segmentTime,
-        elevationChange: elevationChange,
-        gradient: gradient
-      });
-
-      distanceCovered = 0;
-      segmentPoints = [coords[i]];
+    const goalTimeInput = document.getElementById('goalTime').value;
+    const backpackWeight = parseFloat(document.getElementById('backpackWeight').value);
+    if (!goalTimeInput) {
+        alert("Please enter a goal finish time.");
+        return;
     }
-  }
-
-  const tableBody = document.querySelector("#newPacingTable tbody");
-  tableBody.innerHTML = ""; // Clear existing rows
-
-  let cumulativeDistance = 0;
-  let cumulativeTime = 0;
-  const remainingCutOffs = [...cutOffs].sort((a, b) => a.distance - b.distance);
-
-  segments.forEach(segment => {
-    const segmentEndDistance = cumulativeDistance + segment.distance;
-
-    while (remainingCutOffs.length > 0 && remainingCutOffs[0].distance <= segmentEndDistance) {
-      const cutOff = remainingCutOffs.shift();
-      const estimatedTimeAtCutOff = calculateEstimatedTimeAtDistance(cutOff.distance, goalTimeMinutes, backpackWeight);
-
-      const cutOffRow = document.createElement("tr");
-      cutOffRow.className = 'cut-off-row';
-      cutOffRow.innerHTML = `
-        <td colspan="7" style="text-align: center;">
-          <strong>${cutOff.name} @ ${cutOff.distance.toFixed(2)} km</strong> |
-          Arrival: ${minutesToTimeStr(estimatedTimeAtCutOff)} |
-          Cut-off: ${minutesToTimeStr(cutOff.time)}
-        </td>
-      `;
-      tableBody.appendChild(cutOffRow);
+    const goalTimeMinutes = timeStrToMinutes(goalTimeInput);
+    const finalCutOff = cutOffs[cutOffs.length - 1];
+    if (goalTimeMinutes >= finalCutOff.time) {
+        alert(`Your goal time of ${minutesToTimeStr(goalTimeMinutes)} exceeds the final closing time of ${minutesToTimeStr(finalCutOff.time)}.`);
+        return;
     }
 
-    cumulativeDistance = segmentEndDistance;
-    cumulativeTime += segment.time;
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${cumulativeDistance.toFixed(2)}</td>
-      <td>${segment.distance.toFixed(2)}</td>
-      <td>${segment.pace.toFixed(2)}</td>
-      <td>${minutesToTimeStr(segment.time)}</td>
-      <td>${minutesToTimeStr(cumulativeTime)}</td>
-      <td>${segment.elevationChange.toFixed(2)}</td>
-      <td>${segment.gradient.toFixed(2)}</td>
-    `;
-    tableBody.appendChild(row);
-  });
+    // 2. Prepare race plan with user's goal time
+    const racePlan = JSON.parse(JSON.stringify(cutOffs));
+    racePlan[racePlan.length - 1].time = goalTimeMinutes;
+
+    // 3. Initialize variables
+    const tableBody = document.querySelector("#newPacingTable tbody");
+    tableBody.innerHTML = ""; // Clear existing rows
+    const coords = parsedGpxData.features[0].geometry.coordinates;
+    const segmentLength = 10; // 10 km segments
+
+    let gpxCoordIndex = 1;
+    let cumulativeDistance = 0;
+    let cumulativeTime = 0;
+
+    // 4. Loop through each major race section (between cut-offs)
+    for (let i = 0; i < racePlan.length - 1; i++) {
+        const sectionStart = racePlan[i];
+        const sectionEnd = racePlan[i+1];
+
+        // Determine the time budget for this section
+        const isFinishSection = (sectionEnd.name === 'Finish');
+        const sectionTimeBudget = (sectionEnd.time - sectionStart.time) - (isFinishSection ? 0 : bufferMinutes);
+        const sectionDistance = sectionEnd.distance - sectionStart.distance;
+
+        if (sectionTimeBudget <= 0) {
+            alert(`Impossible plan. The time budget for the section "${sectionStart.name} to ${sectionEnd.name}" is zero or negative. Please check cut-off times.`);
+            return;
+        }
+
+        const sectionBasePace = sectionTimeBudget / sectionDistance;
+        let distanceWithinSection = 0;
+
+        // 5. Loop through GPX coordinates to create 10km segments for this major section
+        let segmentPoints = [coords[gpxCoordIndex - 1]];
+        let distanceCoveredInSegment = 0;
+
+        while (gpxCoordIndex < coords.length) {
+            const dist = calculateDistance(coords[gpxCoordIndex - 1][1], coords[gpxCoordIndex - 1][0], coords[gpxCoordIndex][1], coords[gpxCoordIndex][0]);
+
+            // Check if adding this point exceeds the major section boundary
+            if (cumulativeDistance + distanceWithinSection + dist > sectionEnd.distance) {
+                // This point is in the next major section, break to the outer loop
+                break;
+            }
+
+            distanceCoveredInSegment += dist;
+            distanceWithinSection += dist;
+            segmentPoints.push(coords[gpxCoordIndex]);
+
+            // Create a 10km segment row if length is met
+            if (distanceCoveredInSegment >= segmentLength) {
+                const segmentDistance = distanceCoveredInSegment;
+                const startEle = segmentPoints[0][2];
+                const endEle = segmentPoints[segmentPoints.length - 1][2];
+                const elevationChange = endEle - startEle;
+                const gradient = (elevationChange / (segmentDistance * 1000)) * 100;
+
+                let adjustedPace = sectionBasePace;
+                if (gradient > 0) {
+                    adjustedPace *= (1 + (gradient * 0.025)); // 2.5% slower per 1% incline
+                } else {
+                    adjustedPace *= (1 + (gradient * 0.015)); // 1.5% faster per 1% decline
+                }
+                const finalPace = adjustedPace * (1 + (backpackWeight * 0.01));
+                const segmentTime = finalPace * segmentDistance;
+
+                cumulativeDistance += segmentDistance;
+                cumulativeTime += segmentTime;
+
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${cumulativeDistance.toFixed(2)}</td>
+                    <td>${segmentDistance.toFixed(2)}</td>
+                    <td>${finalPace.toFixed(2)}</td>
+                    <td>${minutesToTimeStr(segmentTime)}</td>
+                    <td>${minutesToTimeStr(cumulativeTime)}</td>
+                    <td>${elevationChange.toFixed(2)}</td>
+                    <td>${gradient.toFixed(2)}</td>
+                `;
+                tableBody.appendChild(row);
+
+                // Reset for next segment
+                distanceCoveredInSegment = 0;
+                segmentPoints = [coords[gpxCoordIndex]];
+            }
+            gpxCoordIndex++;
+        }
+
+        // Add the cut-off row for the end of the major section
+        const arrivalTime = sectionStart.time + sectionTimeBudget;
+        const cutOffRow = document.createElement("tr");
+        cutOffRow.className = 'cut-off-row';
+        cutOffRow.innerHTML = `
+            <td colspan="7" style="text-align: center;">
+              <strong>${sectionEnd.name} @ ${sectionEnd.distance.toFixed(2)} km</strong> |
+              Arrival: ${minutesToTimeStr(arrivalTime)} |
+              Cut-off: ${minutesToTimeStr(sectionEnd.time)}
+            </td>
+        `;
+        tableBody.appendChild(cutOffRow);
+    }
 }
 
 function processGpx(gpxText) {
