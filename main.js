@@ -82,6 +82,76 @@ function analyzeSectionTerrain(startKm, endKm) {
     return { distance: sectionDistance, elevationGain: sectionElevationGain, effort: effort };
 }
 
+function getMETsForPace(paceMinPerKm) {
+    if (paceMinPerKm > 25) return 6;   // Very slow walk/hike
+    if (paceMinPerKm > 20) return 7;   // Slow walk/hike
+    if (paceMinPerKm > 15) return 8;   // Brisk walk / slow jog
+    if (paceMinPerKm > 12) return 9;   // Slow jog
+    if (paceMinPerKm > 9) return 10;  // Jog
+    if (paceMinPerKm > 7) return 11.5; // Moderate run
+    return 14; // Fast run
+}
+
+function calculateEnergyPlan(sections) {
+    const runnerWeight = parseFloat(document.getElementById('runnerWeight').value);
+    if (!runnerWeight || runnerWeight <= 0) {
+        // Silently fail if weight is invalid, or we could show a message.
+        // For now, just clear any previous energy plan.
+        document.getElementById('energyPlan').innerHTML = "";
+        return;
+    }
+
+    sections.forEach(section => {
+        const avgPace = section.allocatedTime / section.calculatedDistance;
+        const mets = getMETsForPace(avgPace);
+        section.caloriesPerHour = mets * runnerWeight;
+        section.totalCalories = section.caloriesPerHour * (section.allocatedTime / 60);
+    });
+
+    // 5. Generate and display the energy plan table
+    const energyPlanDiv = document.getElementById('energyPlan');
+    let tableHtml = `
+        <h3>Energy Plan</h3>
+        <table id="energyTable">
+            <thead>
+                <tr>
+                    <th>Section</th>
+                    <th>Avg. Pace (min/km)</th>
+                    <th>Calories/hour</th>
+                    <th>Total Section Calories</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    let totalCalories = 0;
+    sections.forEach(section => {
+        const avgPace = section.allocatedTime / section.calculatedDistance;
+        totalCalories += section.totalCalories;
+        tableHtml += `
+            <tr>
+                <td>${section.name}</td>
+                <td>${avgPace.toFixed(2)}</td>
+                <td>${Math.round(section.caloriesPerHour)}</td>
+                <td>${Math.round(section.totalCalories)}</td>
+            </tr>
+        `;
+    });
+
+    tableHtml += `
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="3"><strong>Total Race Energy Requirement</strong></td>
+                    <td><strong>${Math.round(totalCalories)}</strong></td>
+                </tr>
+            </tfoot>
+        </table>
+    `;
+
+    energyPlanDiv.innerHTML = tableHtml;
+}
+
 function generatePacingPlan() {
     // 1. Get and validate inputs
     if (!parsedGpxData) {
@@ -173,6 +243,9 @@ function generatePacingPlan() {
         `;
         tableBody.appendChild(row);
     }
+
+    // 6. Calculate and display energy plan
+    calculateEnergyPlan(sections);
 }
 
 let map = null; // Keep a reference to the map instance
