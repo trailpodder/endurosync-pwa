@@ -3,8 +3,8 @@ let parsedGpxData = null;
 const cutOffs = [
   { name: 'Start', distance: 0, time: 0 },
   { name: 'Kalmakaltio', distance: 88, time: 24 * 60 }, // 24:00h in minutes
-  { name: 'Hetta', distance: 206, time: 73 * 60 }, // 73:00h in minutes
-  { name: 'Pallas', distance: 261, time: 97 * 60 }, // 97:00h in minutes
+  { name: 'Hetta', distance: 192, time: 73 * 60 }, // 73:00h in minutes
+  { name: 'Pallas', distance: 256, time: 97 * 60 }, // 97:00h in minutes
   { name: 'Finish', distance: 326, time: 126 * 60 } // 126:00h in minutes
 ];
 const bufferMinutes = 3 * 60; // 3 hours in minutes
@@ -106,9 +106,12 @@ function generatePacingPlan() {
         const sectionStart = cutOffs[i];
         const sectionEnd = cutOffs[i + 1];
         const terrain = analyzeSectionTerrain(sectionStart.distance, sectionEnd.distance);
+        const officialDistance = sectionEnd.distance - sectionStart.distance;
         sections.push({
             name: `${sectionStart.name} to ${sectionEnd.name}`,
-            ...terrain,
+            calculatedDistance: terrain.distance,
+            effort: terrain.effort,
+            officialDistance: officialDistance,
             officialDeadline: sectionEnd.time
         });
     }
@@ -156,12 +159,13 @@ function generatePacingPlan() {
     let arrivalTime = 0;
     for (const section of sections) {
         arrivalTime += section.allocatedTime;
-        const avgPace = section.allocatedTime / section.distance;
+        // Use the calculated distance for a more accurate pace, but display the official distance.
+        const avgPace = section.allocatedTime / section.calculatedDistance;
 
         const row = document.createElement("tr");
         row.innerHTML = `
             <td>${section.name}</td>
-            <td>${section.distance.toFixed(2)}</td>
+            <td>${section.officialDistance.toFixed(2)}</td>
             <td>${minutesToTimeStr(section.allocatedTime)}</td>
             <td>${avgPace.toFixed(2)}</td>
             <td>${minutesToTimeStr(arrivalTime)}</td>
