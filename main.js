@@ -105,6 +105,58 @@ function generatePacingPlan() {
     }
 }
 
+let map = null; // Keep a reference to the map instance
+
+function findCoordsForDistance(targetDistance) {
+    if (!parsedGpxData) return null;
+
+    const coords = parsedGpxData.features[0].geometry.coordinates;
+    let distanceCovered = 0;
+
+    if (targetDistance === 0) {
+        return [coords[0][1], coords[0][0]];
+    }
+
+    for (let i = 1; i < coords.length; i++) {
+        const segmentDistance = calculateDistance(coords[i - 1][1], coords[i - 1][0], coords[i][1], coords[i][0]);
+        if (distanceCovered + segmentDistance >= targetDistance) {
+            // Found the segment where the target distance lies. Return the coordinates of the end of this segment.
+            return [coords[i][1], coords[i][0]];
+        }
+        distanceCovered += segmentDistance;
+    }
+    // If targetDistance is greater than total, return the last coordinate
+    return [coords[coords.length - 1][1], coords[coords.length - 1][0]];
+}
+
+function initializeMap(gpxData) {
+    if (map) {
+        map.remove();
+    }
+    map = L.map('map');
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    const coords = gpxData.features[0].geometry.coordinates;
+    const latLngs = coords.map(coord => [coord[1], coord[0]]); // Leaflet uses [lat, lng]
+
+    const route = L.polyline(latLngs, { color: 'blue' }).addTo(map);
+    map.fitBounds(route.getBounds());
+
+    // Add markers for cut-off points
+    cutOffs.forEach(cutOff => {
+        if (cutOff.distance > 0) { // Don't add a marker for the "Start"
+            const coords = findCoordsForDistance(cutOff.distance);
+            if (coords) {
+                L.marker(coords).addTo(map)
+                    .bindPopup(`<b>${cutOff.name}</b><br>${cutOff.distance} km`);
+            }
+        }
+    });
+}
+
 function processGpx(gpxText) {
     const gpx = new DOMParser().parseFromString(gpxText, 'text/xml');
     const geojson = toGeoJSON.gpx(gpx);
@@ -126,6 +178,8 @@ function processGpx(gpxText) {
       <p>Total Distance: ${totalDistance.toFixed(2)} km</p>
       <p>Total Elevation Gain: ${totalElevationGain.toFixed(2)} m</p>
     `;
+
+    initializeMap(parsedGpxData);
 }
 
 function initialize() {
