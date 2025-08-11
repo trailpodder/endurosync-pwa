@@ -44,6 +44,44 @@ function calculateElevationGain(coords) {
   return elevationGain;
 }
 
+function analyzeSectionTerrain(startKm, endKm) {
+    if (!parsedGpxData) return { distance: 0, elevationGain: 0, effort: 0 };
+
+    const coords = parsedGpxData.features[0].geometry.coordinates;
+    let distanceCovered = 0;
+    let sectionDistance = 0;
+    let sectionElevationGain = 0;
+    let inSection = false;
+
+    for (let i = 1; i < coords.length; i++) {
+        const p1 = coords[i - 1];
+        const p2 = coords[i];
+        const segmentDistance = calculateDistance(p1[1], p1[0], p2[1], p2[0]);
+
+        if (!inSection && distanceCovered + segmentDistance >= startKm) {
+            inSection = true;
+        }
+
+        if (inSection) {
+            sectionDistance += segmentDistance;
+            const elevationDiff = p2[2] - p1[2];
+            if (elevationDiff > 0) {
+                sectionElevationGain += elevationDiff;
+            }
+        }
+
+        distanceCovered += segmentDistance;
+
+        if (distanceCovered >= endKm) {
+            break; // Stop after the section ends
+        }
+    }
+
+    // Effort heuristic: 1m of elevation gain is like 10m of flat distance.
+    const effort = sectionDistance + (sectionElevationGain / 1000) * 10;
+    return { distance: sectionDistance, elevationGain: sectionElevationGain, effort: effort };
+}
+
 function generatePacingPlan() {
     // 1. Get and validate inputs
     if (!parsedGpxData) {
@@ -62,46 +100,74 @@ function generatePacingPlan() {
         return;
     }
 
-    // 2. Clear table and initialize variables
-    const tableBody = document.querySelector("#newPacingTable tbody");
-    tableBody.innerHTML = "";
-    let cumulativeArrivalTime = 0;
-
-    // 3. Loop through each major race section
+    // 2. Analyze terrain and effort for each section
+    const sections = [];
     for (let i = 0; i < cutOffs.length - 1; i++) {
         const sectionStart = cutOffs[i];
-        const sectionEnd = cutOffs[i+1];
+        const sectionEnd = cutOffs[i + 1];
+        const terrain = analyzeSectionTerrain(sectionStart.distance, sectionEnd.distance);
+        sections.push({
+            name: `${sectionStart.name} to ${sectionEnd.name}`,
+            ...terrain,
+            officialDeadline: sectionEnd.time
+        });
+    }
 
-        const isFinishSection = (sectionEnd.name === 'Finish');
+    // 3. Apply fatigue factor and calculate total effort
+    const fatigueFactors = [1.0, 1.0, 1.1, 1.25]; // Heuristics
+    sections.forEach((section, i) => {
+        section.fatiguedEffort = section.effort * fatigueFactors[i];
+    });
+    const totalFatiguedEffort = sections.reduce((sum, s) => sum + s.fatiguedEffort, 0);
 
-        // Determine the planned arrival time for the end of this section
-        const plannedArrivalTime = isFinishSection ? goalTimeMinutes : sectionEnd.time - bufferMinutes;
+    // 4. Iteratively allocate time and check against cut-offs
+    let remainingTime = goalTimeMinutes;
+    let remainingEffort = totalFatiguedEffort;
+    let cumulativeTime = 0;
 
-        // Calculate section-specific metrics
-        const sectionDistance = sectionEnd.distance - sectionStart.distance;
-        const sectionTime = plannedArrivalTime - cumulativeArrivalTime;
+    for (const section of sections) {
+        // Allocate time based on proportion of remaining effort
+        let sectionTime = remainingTime * (section.fatiguedEffort / remainingEffort);
+
+        // Check against cut-off (if not the finish section)
+        const isFinishSection = section.name.includes('Finish');
+        if (!isFinishSection) {
+            const maxAllowedTime = (section.officialDeadline - bufferMinutes) - cumulativeTime;
+            if (sectionTime > maxAllowedTime) {
+                sectionTime = maxAllowedTime;
+            }
+        }
 
         if (sectionTime <= 0) {
-            alert(`Impossible plan. The time budget for the section "${sectionStart.name} to ${sectionEnd.name}" is zero or negative. Try a faster goal time.`);
-            tableBody.innerHTML = ""; // Clear partial plan
+            alert(`Impossible plan. The time budget for section "${section.name}" is zero or negative. Try a faster goal time.`);
+            document.querySelector("#newPacingTable tbody").innerHTML = "";
             return;
         }
 
-        const avgPace = sectionTime / sectionDistance;
+        section.allocatedTime = sectionTime;
+        cumulativeTime += sectionTime;
+        remainingTime -= sectionTime;
+        remainingEffort -= section.fatiguedEffort;
+    }
+
+    // 5. Generate table
+    const tableBody = document.querySelector("#newPacingTable tbody");
+    tableBody.innerHTML = "";
+    let arrivalTime = 0;
+    for (const section of sections) {
+        arrivalTime += section.allocatedTime;
+        const avgPace = section.allocatedTime / section.distance;
 
         const row = document.createElement("tr");
         row.innerHTML = `
-            <td>${sectionStart.name} to ${sectionEnd.name}</td>
-            <td>${sectionDistance.toFixed(2)}</td>
-            <td>${minutesToTimeStr(sectionTime)}</td>
+            <td>${section.name}</td>
+            <td>${section.distance.toFixed(2)}</td>
+            <td>${minutesToTimeStr(section.allocatedTime)}</td>
             <td>${avgPace.toFixed(2)}</td>
-            <td>${minutesToTimeStr(plannedArrivalTime)}</td>
-            <td>${minutesToTimeStr(sectionEnd.time)}</td>
+            <td>${minutesToTimeStr(arrivalTime)}</td>
+            <td>${minutesToTimeStr(section.officialDeadline)}</td>
         `;
         tableBody.appendChild(row);
-
-        // Update cumulative time for the next iteration
-        cumulativeArrivalTime = plannedArrivalTime;
     }
 }
 
