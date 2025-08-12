@@ -117,7 +117,7 @@ function calculateEnergyPlan(sections) {
                 <tr>
                     <th>Section</th>
                     <th>Avg. Pace (min/km)</th>
-                    <th>Calories/hour</th>
+                    <th>Carbs g/h</th>
                     <th>Total Section Calories</th>
                 </tr>
             </thead>
@@ -132,7 +132,7 @@ function calculateEnergyPlan(sections) {
             <tr>
                 <td>${section.name}</td>
                 <td>${avgPace.toFixed(2)}</td>
-                <td>${Math.round(section.caloriesPerHour)}</td>
+                <td>${Math.round(section.caloriesPerHour / 4)}</td>
                 <td>${Math.round(section.totalCalories)}</td>
             </tr>
         `;
