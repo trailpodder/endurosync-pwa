@@ -170,6 +170,12 @@ function generatePacingPlan() {
         return;
     }
 
+    const restTimes = {
+      'Kalmakaltio': goalTimeMinutes * 0.005,
+      'Hetta': goalTimeMinutes * 0.025,
+      'Pallas': goalTimeMinutes * 0.025
+    };
+
     // 2. Analyze terrain and effort for each section
     const sections = [];
     for (let i = 0; i < cutOffs.length - 1; i++) {
@@ -233,12 +239,16 @@ function generatePacingPlan() {
         const avgPace = section.allocatedTime / section.calculatedDistance;
 
         const row = document.createElement("tr");
+        const sectionEndName = section.name.split(' to ')[1];
+        const recommendedRest = restTimes[sectionEndName] ? minutesToTimeStr(restTimes[sectionEndName]) : '—';
+
         row.innerHTML = `
             <td>${section.name}</td>
             <td>${section.officialDistance.toFixed(2)}</td>
             <td>${minutesToTimeStr(section.allocatedTime)}</td>
             <td>${avgPace.toFixed(2)}</td>
             <td>${minutesToTimeStr(arrivalTime)}</td>
+            <td>${recommendedRest}</td>
             <td>${minutesToTimeStr(section.officialDeadline)}</td>
         `;
         tableBody.appendChild(row);
