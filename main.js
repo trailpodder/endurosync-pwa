@@ -83,13 +83,13 @@ function analyzeSectionTerrain(startKm, endKm) {
 }
 
 function getMETsForPace(paceMinPerKm) {
-    if (paceMinPerKm > 25) return 6;   // Very slow walk/hike
-    if (paceMinPerKm > 20) return 7;   // Slow walk/hike
-    if (paceMinPerKm > 15) return 8;   // Brisk walk / slow jog
-    if (paceMinPerKm > 12) return 9;   // Slow jog
-    if (paceMinPerKm > 9) return 10;  // Jog
-    if (paceMinPerKm > 7) return 11.5; // Moderate run
-    return 14; // Fast run
+    if (paceMinPerKm > 25) return 2;   // Very slow walk/hike
+    if (paceMinPerKm > 20) return 2.5;   // Slow walk/hike
+    if (paceMinPerKm > 15) return 3;   // Brisk walk / slow jog
+    if (paceMinPerKm > 12) return 4;   // Slow jog
+    if (paceMinPerKm > 9) return 5;  // Jog
+    if (paceMinPerKm > 7) return 5.5; // Moderate run
+    return 6; // Fast run
 }
 
 function calculateEnergyPlan(sections) {
