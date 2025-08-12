@@ -272,6 +272,115 @@ function findCoordsForDistance(targetDistance) {
     return [coords[coords.length - 1][1], coords[coords.length - 1][0]];
 }
 
+function drawElevationChart(gpxData) {
+  const coords = gpxData.features[0].geometry.coordinates;
+  let distance = 0;
+  const elevationData = [];
+  const distanceData = [];
+
+  // Start with the first point
+  distanceData.push(0);
+  elevationData.push(coords[0][2]);
+
+  for (let i = 1; i < coords.length; i++) {
+    distance += calculateDistance(coords[i - 1][1], coords[i - 1][0], coords[i][1], coords[i][0]);
+    distanceData.push(distance);
+    elevationData.push(coords[i][2]);
+  }
+
+  const sectionColors = [
+    'rgba(255, 99, 132, 0.5)',  // Njurkulahti - Kalmakaltio
+    'rgba(54, 162, 235, 0.5)', // Kalmakaltio - Hetta
+    'rgba(255, 206, 86, 0.5)', // Hetta - Pallas
+    'rgba(75, 192, 192, 0.5)'  // Pallas - Finish
+  ];
+
+  const datasets = [];
+  let dataPointIndex = 0;
+
+  for (let i = 0; i < cutOffs.length - 1; i++) {
+    const sectionStartKm = cutOffs[i].distance;
+    const sectionEndKm = cutOffs[i + 1].distance;
+    const sectionData = [];
+
+    // Add the first point of the section, which is the last point of the previous section
+    if (i > 0) {
+        let prevSectionEndPointIndex = dataPointIndex > 0 ? dataPointIndex -1 : 0;
+        sectionData.push({
+            x: distanceData[prevSectionEndPointIndex],
+            y: elevationData[prevSectionEndPointIndex]
+        });
+    }
+
+    while (dataPointIndex < distanceData.length && distanceData[dataPointIndex] <= sectionEndKm) {
+      sectionData.push({ x: distanceData[dataPointIndex], y: elevationData[dataPointIndex] });
+      dataPointIndex++;
+    }
+
+    // Add the first point of the next section to close the area, if it exists
+    if(dataPointIndex < distanceData.length) {
+        sectionData.push({ x: distanceData[dataPointIndex], y: elevationData[dataPointIndex] });
+    }
+
+
+    datasets.push({
+      label: `${cutOffs[i].name} - ${cutOffs[i+1].name}`,
+      data: sectionData,
+      borderColor: sectionColors[i].replace('0.5', '1'),
+      backgroundColor: sectionColors[i],
+      borderWidth: 2,
+      fill: true,
+      tension: 0.4,
+      pointRadius: 0,
+      stepped: false,
+    });
+  }
+
+  const ctx = document.getElementById('elevationChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      datasets: datasets
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+      scales: {
+        x: {
+          type: 'linear',
+          title: {
+            display: true,
+            text: 'Distance (km)'
+          },
+          ticks: {
+              beginAtZero: true
+          }
+        },
+        y: {
+          title: {
+            display: true,
+            text: 'Elevation (m)'
+          },
+          ticks: {
+            beginAtZero: false
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+        },
+        tooltip: {
+            enabled: true,
+            mode: 'index',
+            intersect: false,
+        }
+      }
+    }
+  });
+}
+
 function initializeMap(gpxData) {
     if (map) {
         map.remove();
@@ -323,6 +432,7 @@ function processGpx(gpxText) {
     `;
 
     initializeMap(parsedGpxData);
+    drawElevationChart(parsedGpxData);
 }
 
 function initialize() {
