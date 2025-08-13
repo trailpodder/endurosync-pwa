@@ -172,7 +172,7 @@ function generatePacingPlan() {
 
     const restTimes = {
       'Kalmakaltio': goalTimeMinutes * 0.005,
-      'Hetta': goalTimeMinutes * 0.020,
+      'Hetta': goalTimeMinutes * 0.025,
       'Pallas': goalTimeMinutes * 0.025
     };
 
